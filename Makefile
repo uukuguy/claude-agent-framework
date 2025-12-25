@@ -154,8 +154,20 @@ build-clean:
 
 publish-test:
 	@echo "📤 Publishing to TestPyPI..."
-	@uv publish --index-url https://test.pypi.org/legacy/
+	@if [ -f ~/.pypirc ] && [ -z "$$UV_PUBLISH_PASSWORD" ]; then \
+		echo "🔑 Reading credentials from ~/.pypirc..."; \
+		PYPI_PASSWORD=$$(sed -n '/^\[testpypi\]/,/^\[/p' ~/.pypirc | grep "^password" | sed 's/password[[:space:]]*=[[:space:]]*//'); \
+		UV_PUBLISH_USERNAME=__token__ UV_PUBLISH_PASSWORD="$$PYPI_PASSWORD" uv publish --index-url https://test.pypi.org/legacy/; \
+	else \
+		uv publish --index-url https://test.pypi.org/legacy/; \
+	fi
 
 publish-prod:
 	@echo "📤 Publishing to PyPI..."
-	@uv publish
+	@if [ -f ~/.pypirc ] && [ -z "$$UV_PUBLISH_PASSWORD" ]; then \
+		echo "🔑 Reading credentials from ~/.pypirc..."; \
+		PYPI_PASSWORD=$$(sed -n '/^\[pypi\]/,/^\[/p' ~/.pypirc | grep "^password" | sed 's/password[[:space:]]*=[[:space:]]*//'); \
+		UV_PUBLISH_USERNAME=__token__ UV_PUBLISH_PASSWORD="$$PYPI_PASSWORD" uv publish; \
+	else \
+		uv publish; \
+	fi
