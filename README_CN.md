@@ -12,8 +12,13 @@ Claude Agent Framework 是一个生产级的多智能体 AI 系统编排层。�
 
 - **7 种预置模式** - Research、Pipeline、Critic-Actor、Specialist Pool、Debate、Reflexion、MapReduce
 - **两行代码启动** - 极简初始化和运行
-- **全链路可观测** - 基于 Hook 机制的结构化 JSONL 日志
-- **成本可控** - 根据任务复杂度自动选择模型
+- **生产级插件系统** - 9个生命周期钩子支持指标收集、成本追踪、重试处理等自定义逻辑
+- **高级配置系统** - Pydantic验证、多源加载（YAML/环境变量）、环境配置文件
+- **性能追踪** - Token使用、成本估算、内存分析、多格式导出（JSON/CSV/Prometheus）
+- **动态代理注册** - 运行时注册和修改代理，无需修改代码
+- **全链路可观测** - 结构化JSONL日志、交互式仪表板、会话调试工具
+- **CLI增强** - 指标查看、会话可视化、HTML报告生成
+- **成本可控** - 自动模型选择、预算限制、单代理成本分解
 - **可扩展架构** - 通过简单装饰器注册自定义模式
 
 ```python
@@ -495,6 +500,220 @@ class MyCustomArchitecture(BaseArchitecture):
     async def execute(self, prompt, tracker=None, transcript=None):
         ...
 ```
+
+### 使用插件 (v0.4.0 新功能)
+
+```python
+from claude_agent_framework import init
+from claude_agent_framework.plugins.builtin import (
+    MetricsCollectorPlugin,
+    CostTrackerPlugin,
+    RetryHandlerPlugin
+)
+
+session = init("research")
+
+# 添加指标追踪
+metrics_plugin = MetricsCollectorPlugin()
+session.architecture.add_plugin(metrics_plugin)
+
+# 添加成本追踪（带预算限制）
+cost_plugin = CostTrackerPlugin(budget_usd=5.0)
+session.architecture.add_plugin(cost_plugin)
+
+# 添加自动重试
+retry_plugin = RetryHandlerPlugin(max_retries=3)
+session.architecture.add_plugin(retry_plugin)
+
+# 运行会话
+async for msg in session.run("分析市场"):
+    print(msg)
+
+# 获取指标
+metrics = metrics_plugin.get_metrics()
+print(f"成本: ${metrics.estimated_cost_usd:.4f}")
+print(f"Token: {metrics.tokens.total_tokens}")
+```
+
+### 高级配置 (v0.4.0 新功能)
+
+```python
+from claude_agent_framework.config import ConfigLoader, FrameworkConfigSchema
+
+# 从YAML加载
+config = ConfigLoader.from_yaml("config.yaml")
+
+# 使用环境配置文件
+config = ConfigLoader.load_with_profile("production")
+
+# 从环境变量覆盖
+config = ConfigLoader.from_env(prefix="CLAUDE_")
+
+# 验证配置
+from claude_agent_framework.config import ConfigValidator
+errors = ConfigValidator.validate_config(config)
+if errors:
+    print(f"配置错误: {errors}")
+```
+
+### 动态代理注册 (v0.4.0 新功能)
+
+```python
+session = init("specialist_pool")
+
+# 运行时添加新代理
+session.architecture.add_agent(
+    name="security_expert",
+    description="网络安全专家",
+    tools=["WebSearch", "Read"],
+    prompt="你是一名网络安全专家...",
+    model="sonnet"
+)
+
+# 列出所有动态代理
+agents = session.architecture.list_dynamic_agents()
+print(f"动态代理: {agents}")
+```
+
+## CLI 使用
+
+### 运行架构
+
+```bash
+# 列出可用架构
+python -m claude_agent_framework.cli --list
+
+# 运行指定架构
+python -m claude_agent_framework.cli --arch research -q "分析AI市场趋势"
+
+# 交互模式
+python -m claude_agent_framework.cli --arch pipeline -i
+
+# 选择模型
+python -m claude_agent_framework.cli --arch debate -m sonnet -q "是否应该使用微服务？"
+```
+
+### 会话可观测性 (v0.4.0 新功能)
+
+```bash
+# 查看会话指标
+claude-agent metrics <session-id>
+# 显示：持续时间、token使用、成本、代理/工具统计
+
+# 打开交互式仪表板
+claude-agent view <session-id>
+# 在浏览器中打开：时间线、工具图、性能分析
+
+# 生成HTML报告
+claude-agent report <session-id> --output report.html
+# 创建包含图表的完整会话报告
+```
+
+## 安装选项
+
+```bash
+# 基础安装
+pip install claude-agent-framework
+
+# 支持PDF生成
+pip install "claude-agent-framework[pdf]"
+
+# 支持图表生成
+pip install "claude-agent-framework[charts]"
+
+# 支持高级配置（Pydantic、YAML）- v0.4.0 新功能
+pip install "claude-agent-framework[config]"
+
+# 支持指标导出（Prometheus）- v0.4.0 新功能
+pip install "claude-agent-framework[metrics]"
+
+# 支持可视化（Matplotlib、Jinja2）- v0.4.0 新功能
+pip install "claude-agent-framework[viz]"
+
+# 完整安装（所有功能）
+pip install "claude-agent-framework[all]"
+
+# 开发安装
+pip install "claude-agent-framework[dev]"
+```
+
+## 项目结构
+
+```
+claude_agent_framework/
+├── init.py              # 简化的初始化
+├── cli.py               # 命令行界面
+├── config/              # 配置系统 (v0.4.0)
+│   ├── schema.py        # Pydantic验证模型
+│   ├── loader.py        # 多源配置加载
+│   ├── validator.py     # 配置验证
+│   └── profiles/        # 环境配置（dev/staging/prod）
+├── core/                # 核心抽象
+│   ├── base.py          # BaseArchitecture类
+│   ├── session.py       # AgentSession管理
+│   └── registry.py      # 架构注册表
+├── plugins/             # 插件系统 (v0.4.0)
+│   ├── base.py          # BasePlugin, PluginManager
+│   └── builtin/         # 内置插件
+│       ├── metrics_collector.py
+│       ├── cost_tracker.py
+│       └── retry_handler.py
+├── metrics/             # 性能追踪 (v0.4.0)
+│   ├── collector.py     # 指标收集
+│   └── exporter.py      # JSON/CSV/Prometheus导出
+├── dynamic/             # 动态代理注册 (v0.4.0)
+│   ├── agent_registry.py
+│   ├── loader.py
+│   └── validator.py
+├── observability/       # 可观测性工具 (v0.4.0)
+│   ├── logger.py        # 结构化日志
+│   ├── visualizer.py    # 会话可视化
+│   └── debugger.py      # 交互式调试
+├── architectures/       # 内置架构
+│   ├── research/        # Research模式
+│   ├── pipeline/        # Pipeline模式
+│   ├── critic_actor/    # Critic-Actor模式
+│   ├── specialist_pool/ # Specialist Pool模式
+│   ├── debate/          # Debate模式
+│   ├── reflexion/       # Reflexion模式
+│   └── mapreduce/       # MapReduce模式
+├── utils/               # 工具模块
+│   ├── tracker.py       # Hook追踪
+│   ├── transcript.py    # 日志记录
+│   └── message_handler.py
+├── files/               # 工作目录
+└── logs/                # 会话日志
+```
+
+## 文档
+
+### 快速参考
+
+- [README (English)](README.md) - English documentation
+- [最佳实践指南](docs/BEST_PRACTICES_CN.md) - 模式选择和实现技巧
+- [Best Practices (English)](docs/BEST_PRACTICES.md)
+
+### 架构与设计 (v0.4.0 新功能)
+
+- [架构选择指南](docs/guides/architecture_selection/GUIDE_CN.md) - 决策流程图和对比
+- [Architecture Selection Guide (English)](docs/guides/architecture_selection/GUIDE.md)
+
+### 定制化指南 (v0.4.0 新功能)
+
+- [插件开发指南](docs/guides/customization/CUSTOM_PLUGINS_CN.md) - 使用生命周期钩子创建自定义插件
+- [Plugin Development Guide (English)](docs/guides/customization/CUSTOM_PLUGINS.md)
+
+### 高级主题 (v0.4.0 新功能)
+
+- [性能优化指南](docs/guides/advanced/PERFORMANCE_TUNING_CN.md) - 优化延迟和成本
+- [Performance Tuning Guide (English)](docs/guides/advanced/PERFORMANCE_TUNING.md)
+
+### API参考 (v0.4.0 新功能)
+
+- [核心API参考](docs/api/core_cn.md) - init(), AgentSession, BaseArchitecture
+- [Core API Reference (English)](docs/api/core.md)
+- [插件API参考](docs/api/plugins_cn.md) - BasePlugin, PluginManager, 内置插件
+- [Plugins API Reference (English)](docs/api/plugins.md)
 
 ## 日志输出
 

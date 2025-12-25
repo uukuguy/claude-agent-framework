@@ -16,8 +16,13 @@ Claude Agent Framework is a production-ready orchestration layer for building mu
 
 - **7 Pre-built Patterns** - Research, Pipeline, Critic-Actor, Specialist Pool, Debate, Reflexion, MapReduce
 - **2-Line Quick Start** - Initialize and run with minimal code
-- **Full Observability** - Hook-based tracking with structured JSONL logging
-- **Cost Control** - Automatic model selection based on task complexity
+- **Production Plugin System** - 9 lifecycle hooks for metrics, cost tracking, retry handling, and custom logic
+- **Advanced Configuration** - Pydantic validation, multi-source loading (YAML/env), environment profiles
+- **Performance Tracking** - Token usage, cost estimation, memory profiling, multi-format export (JSON/CSV/Prometheus)
+- **Dynamic Agent Registry** - Register and modify agents at runtime without code changes
+- **Full Observability** - Structured JSONL logging, interactive dashboards, session debugging tools
+- **CLI Enhancement** - Metrics viewing, session visualization, HTML report generation
+- **Cost Control** - Automatic model selection, budget limits, per-agent cost breakdown
 - **Extensible Architecture** - Register custom patterns with a simple decorator
 
 ```python
@@ -398,6 +403,8 @@ Task → Splitter → [Mapper-1, Mapper-2, ...] → Reducer → Result
 
 ## CLI Usage
 
+### Running Architectures
+
 ```bash
 # List available architectures
 python -m claude_agent_framework.cli --list
@@ -410,6 +417,22 @@ python -m claude_agent_framework.cli --arch pipeline -i
 
 # Choose model
 python -m claude_agent_framework.cli --arch debate -m sonnet -q "Should we use microservices?"
+```
+
+### Session Observability (New in v0.4.0)
+
+```bash
+# View session metrics
+claude-agent metrics <session-id>
+# Shows: duration, token usage, cost, agent/tool statistics
+
+# Open interactive dashboard
+claude-agent view <session-id>
+# Opens browser with timeline, tool graphs, performance analysis
+
+# Generate HTML report
+claude-agent report <session-id> --output report.html
+# Creates comprehensive session report with charts
 ```
 
 ## Python API
@@ -465,6 +488,80 @@ class MyCustomArchitecture(BaseArchitecture):
         ...
 ```
 
+### Using Plugins (New in v0.4.0)
+
+```python
+from claude_agent_framework import init
+from claude_agent_framework.plugins.builtin import (
+    MetricsCollectorPlugin,
+    CostTrackerPlugin,
+    RetryHandlerPlugin
+)
+
+session = init("research")
+
+# Add metrics tracking
+metrics_plugin = MetricsCollectorPlugin()
+session.architecture.add_plugin(metrics_plugin)
+
+# Add cost tracking with budget limit
+cost_plugin = CostTrackerPlugin(budget_usd=5.0)
+session.architecture.add_plugin(cost_plugin)
+
+# Add automatic retry on errors
+retry_plugin = RetryHandlerPlugin(max_retries=3)
+session.architecture.add_plugin(retry_plugin)
+
+# Run session
+async for msg in session.run("Analyze market"):
+    print(msg)
+
+# Get metrics
+metrics = metrics_plugin.get_metrics()
+print(f"Cost: ${metrics.estimated_cost_usd:.4f}")
+print(f"Tokens: {metrics.tokens.total_tokens}")
+```
+
+### Advanced Configuration (New in v0.4.0)
+
+```python
+from claude_agent_framework.config import ConfigLoader, FrameworkConfigSchema
+
+# Load from YAML
+config = ConfigLoader.from_yaml("config.yaml")
+
+# Load with environment profile
+config = ConfigLoader.load_with_profile("production")
+
+# Override with environment variables
+config = ConfigLoader.from_env(prefix="CLAUDE_")
+
+# Validate configuration
+from claude_agent_framework.config import ConfigValidator
+errors = ConfigValidator.validate_config(config)
+if errors:
+    print(f"Configuration errors: {errors}")
+```
+
+### Dynamic Agent Registration (New in v0.4.0)
+
+```python
+session = init("specialist_pool")
+
+# Add new agent at runtime
+session.architecture.add_agent(
+    name="security_expert",
+    description="Cybersecurity specialist",
+    tools=["WebSearch", "Read"],
+    prompt="You are a cybersecurity expert...",
+    model="sonnet"
+)
+
+# List all agents (static + dynamic)
+agents = session.architecture.list_dynamic_agents()
+print(f"Dynamic agents: {agents}")
+```
+
 ## Output
 
 Each session generates:
@@ -485,6 +582,15 @@ pip install "claude-agent-framework[pdf]"
 # With chart generation support
 pip install "claude-agent-framework[charts]"
 
+# With advanced configuration (Pydantic, YAML) - New in v0.4.0
+pip install "claude-agent-framework[config]"
+
+# With metrics export (Prometheus) - New in v0.4.0
+pip install "claude-agent-framework[metrics]"
+
+# With visualization (Matplotlib, Jinja2) - New in v0.4.0
+pip install "claude-agent-framework[viz]"
+
 # Full installation (all features)
 pip install "claude-agent-framework[all]"
 
@@ -498,11 +604,32 @@ pip install "claude-agent-framework[dev]"
 claude_agent_framework/
 ├── init.py              # Simplified initialization
 ├── cli.py               # Command-line interface
-├── config.py            # Configuration management
+├── config/              # Configuration system (v0.4.0)
+│   ├── schema.py        # Pydantic validation models
+│   ├── loader.py        # Multi-source config loading
+│   ├── validator.py     # Configuration validation
+│   └── profiles/        # Environment configs (dev/staging/prod)
 ├── core/                # Core abstractions
 │   ├── base.py          # BaseArchitecture class
 │   ├── session.py       # AgentSession management
 │   └── registry.py      # Architecture registry
+├── plugins/             # Plugin system (v0.4.0)
+│   ├── base.py          # BasePlugin, PluginManager
+│   └── builtin/         # Built-in plugins
+│       ├── metrics_collector.py
+│       ├── cost_tracker.py
+│       └── retry_handler.py
+├── metrics/             # Performance tracking (v0.4.0)
+│   ├── collector.py     # Metrics collection
+│   └── exporter.py      # JSON/CSV/Prometheus export
+├── dynamic/             # Dynamic agent registry (v0.4.0)
+│   ├── agent_registry.py
+│   ├── loader.py
+│   └── validator.py
+├── observability/       # Observability tools (v0.4.0)
+│   ├── logger.py        # Structured logging
+│   ├── visualizer.py    # Session visualization
+│   └── debugger.py      # Interactive debugging
 ├── architectures/       # Built-in architectures
 │   ├── research/        # Research pattern
 │   ├── pipeline/        # Pipeline pattern
@@ -553,6 +680,36 @@ make test             # Run tests
 make format           # Format code
 make lint             # Lint code
 ```
+
+## Documentation
+
+### Quick Reference
+
+- [README (Chinese)](README_CN.md) - 中文文档
+- [Best Practices Guide](docs/BEST_PRACTICES.md) - Pattern selection and implementation tips
+- [Best Practices (Chinese)](docs/BEST_PRACTICES_CN.md) - 最佳实践指南（中文）
+
+### Architecture & Design (New in v0.4.0)
+
+- [Architecture Selection Guide](docs/guides/architecture_selection/GUIDE.md) - Decision flowchart and comparison
+- [架构选择指南（中文）](docs/guides/architecture_selection/GUIDE_CN.md)
+
+### Customization Guides (New in v0.4.0)
+
+- [Plugin Development Guide](docs/guides/customization/CUSTOM_PLUGINS.md) - Create custom plugins with lifecycle hooks
+- [插件开发指南（中文）](docs/guides/customization/CUSTOM_PLUGINS_CN.md)
+
+### Advanced Topics (New in v0.4.0)
+
+- [Performance Tuning Guide](docs/guides/advanced/PERFORMANCE_TUNING.md) - Optimize latency and cost
+- [性能优化指南（中文）](docs/guides/advanced/PERFORMANCE_TUNING_CN.md)
+
+### API Reference (New in v0.4.0)
+
+- [Core API Reference](docs/api/core.md) - init(), AgentSession, BaseArchitecture
+- [核心API参考（中文）](docs/api/core_cn.md)
+- [Plugins API Reference](docs/api/plugins.md) - BasePlugin, PluginManager, built-in plugins
+- [插件API参考（中文）](docs/api/plugins_cn.md)
 
 ## Requirements
 
