@@ -33,14 +33,10 @@ jobs:
         run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: Build distribution
-        run: |
-          cd claude_agent_framework
-          uv build
+        run: uv build
 
       - name: Display built files
-        run: |
-          cd claude_agent_framework
-          ls -lh dist/
+        run: ls -lh dist/
 
       - name: Publish to TestPyPI
         if: |
@@ -49,9 +45,7 @@ jobs:
         env:
           UV_PUBLISH_USERNAME: __token__
           UV_PUBLISH_PASSWORD: ${{ secrets.TESTPYPI_API_TOKEN }}
-        run: |
-          cd claude_agent_framework
-          uv publish --index-url https://test.pypi.org/legacy/
+        run: uv publish --index-url https://test.pypi.org/legacy/
 
       - name: Publish to PyPI
         if: |
@@ -60,6 +54,4 @@ jobs:
         env:
           UV_PUBLISH_USERNAME: __token__
           UV_PUBLISH_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-        run: |
-          cd claude_agent_framework
-          uv publish
+        run: uv publish

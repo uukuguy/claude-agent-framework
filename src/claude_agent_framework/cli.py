@@ -11,7 +11,6 @@ import argparse
 import asyncio
 import logging
 import sys
-from pathlib import Path
 
 # Configure logging
 logging.basicConfig(
@@ -20,16 +19,6 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 logger = logging.getLogger(__name__)
-
-
-def setup_import_path() -> None:
-    """Setup import path."""
-    framework_dir = Path(__file__).parent.parent
-    if str(framework_dir) not in sys.path:
-        sys.path.insert(0, str(framework_dir))
-
-
-setup_import_path()
 
 from claude_agent_framework.config import validate_api_key
 from claude_agent_framework.core.registry import (

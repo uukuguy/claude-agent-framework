@@ -96,12 +96,12 @@ test:
 
 # Run tests with coverage report
 test-cov:
-	uv run pytest tests/ -v --cov=claude_agent_framework --cov-report=html
+	uv run pytest tests/ -v --cov=src/claude_agent_framework --cov-report=html
 
 # Lint code
 lint:
 	uv run ruff check .
-	uv run mypy claude_agent_framework
+	uv run mypy src/claude_agent_framework
 
 # Format code
 format:
