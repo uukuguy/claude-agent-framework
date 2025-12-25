@@ -157,9 +157,9 @@ publish-test:
 	@if [ -f ~/.pypirc ] && [ -z "$$UV_PUBLISH_PASSWORD" ]; then \
 		echo "🔑 Reading credentials from ~/.pypirc..."; \
 		PYPI_PASSWORD=$$(sed -n '/^\[testpypi\]/,/^\[/p' ~/.pypirc | grep "^password" | sed 's/password[[:space:]]*=[[:space:]]*//'); \
-		UV_PUBLISH_USERNAME=__token__ UV_PUBLISH_PASSWORD="$$PYPI_PASSWORD" uv publish --index-url https://test.pypi.org/legacy/; \
+		UV_PUBLISH_USERNAME=__token__ UV_PUBLISH_PASSWORD="$$PYPI_PASSWORD" uv publish --publish-url https://test.pypi.org/legacy/; \
 	else \
-		uv publish --index-url https://test.pypi.org/legacy/; \
+		uv publish --publish-url https://test.pypi.org/legacy/; \
 	fi
 
 publish-prod:
