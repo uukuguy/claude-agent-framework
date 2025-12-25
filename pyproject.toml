@@ -31,6 +31,9 @@ config = [
     "pydantic>=2.0.0,<3.0.0",
     "pyyaml>=6.0.0",
 ]
+observability = [
+    "jinja2>=3.1.0",
+]
 pdf = [
     "reportlab>=4.0.0",
     "pypdf>=3.0.0",
@@ -54,7 +57,7 @@ docs = [
     "mkdocs-material>=9.0.0",
 ]
 all = [
-    "claude-agent-framework[config,pdf,charts,dev,docs]",
+    "claude-agent-framework[config,observability,pdf,charts,dev,docs]",
 ]
 
 [project.scripts]
