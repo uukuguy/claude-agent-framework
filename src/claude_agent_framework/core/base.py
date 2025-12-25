@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, AsyncIterator, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
+    from claude_agent_framework.plugins.base import BasePlugin
     from claude_agent_framework.utils import SubagentTracker, TranscriptWriter
 
 
@@ -124,8 +125,13 @@ class BaseArchitecture(ABC):
         self.model_config = model_config or AgentModelConfig()
         self._prompts_dir = prompts_dir
         self._files_dir = files_dir
-        self._plugins: list[ArchitecturePlugin] = []
+        self._plugins: list[ArchitecturePlugin] = []  # Legacy plugin support
         self._result: Any = None
+
+        # New plugin system
+        from claude_agent_framework.plugins.base import PluginManager
+
+        self._plugin_manager = PluginManager()
 
     @property
     def prompts_dir(self) -> Path:
@@ -217,14 +223,51 @@ class BaseArchitecture(ABC):
         """
         pass
 
-    def add_plugin(self, plugin: ArchitecturePlugin) -> None:
-        """Add a plugin to the architecture."""
-        self._plugins.append(plugin)
+    def add_plugin(self, plugin: ArchitecturePlugin | BasePlugin) -> None:
+        """
+        Add a plugin to the architecture.
 
-    def remove_plugin(self, plugin: ArchitecturePlugin) -> None:
-        """Remove a plugin from the architecture."""
-        if plugin in self._plugins:
+        Supports both legacy ArchitecturePlugin (Protocol) and new BasePlugin.
+
+        Args:
+            plugin: Plugin instance (legacy or new style)
+        """
+        from claude_agent_framework.plugins.base import BasePlugin
+
+        if isinstance(plugin, BasePlugin):
+            # New style plugin
+            self._plugin_manager.register(plugin)
+        elif isinstance(plugin, ArchitecturePlugin):
+            # Legacy style plugin
+            self._plugins.append(plugin)
+        else:
+            raise TypeError(
+                f"Plugin must be BasePlugin or ArchitecturePlugin, got {type(plugin)}"
+            )
+
+    def remove_plugin(self, plugin: ArchitecturePlugin | BasePlugin) -> None:
+        """
+        Remove a plugin from the architecture.
+
+        Args:
+            plugin: Plugin instance to remove
+        """
+        from claude_agent_framework.plugins.base import BasePlugin
+
+        if isinstance(plugin, BasePlugin):
+            self._plugin_manager.unregister(plugin)
+        elif plugin in self._plugins:
             self._plugins.remove(plugin)
+
+    @property
+    def plugin_manager(self):
+        """
+        Get the plugin manager instance.
+
+        Returns:
+            PluginManager instance for advanced plugin management
+        """
+        return self._plugin_manager
 
     def _apply_before_execute(self, prompt: str) -> str:
         """Apply all plugin before_execute hooks."""

@@ -20,8 +20,8 @@ except ImportError:
     pass
 
 
-# Framework root directory
-FRAMEWORK_ROOT = Path(__file__).parent
+# Framework root directory (config/ is inside claude_agent_framework/)
+FRAMEWORK_ROOT = Path(__file__).parent.parent
 PROMPTS_DIR = FRAMEWORK_ROOT / "prompts"
 FILES_DIR = FRAMEWORK_ROOT / "files"
 LOGS_DIR = FRAMEWORK_ROOT / "logs"
