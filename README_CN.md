@@ -103,19 +103,23 @@ Claude Agent Framework 通过**智能体专业化与编排**解决这个问题�
 
 ## 生产级示例
 
-框架包含 7 个生产级示例,展示真实业务场景的应用。每个示例演示特定架构模式如何解决真实的企业挑战。
+框架包含 **7 个生产级示例**，展示真实业务场景的应用。每个示例演示特定架构模式如何解决真实的企业挑战。
+
+**📁 位置**：[`examples/production/`](examples/production/)
+**📊 状态**：全部 7 个示例已完成并可投入生产
+**📚 文档**：每个示例包含双语 README（EN/CN）、配置指南和架构文档
 
 ### 示例概览
 
-| 示例 | 架构 | 业务场景 | 核心设计模式 |
-|------|------|----------|-------------|
-| **01_competitive_intelligence** | Research | SaaS 竞品分析 | 并行数据收集 → 综合分析 |
-| **02_pr_code_review** | Pipeline | 自动化 PR 审查 | 顺序阶段门控 + 质量阈值 |
-| **03_marketing_content** | Critic-Actor | 营销文案优化 | 生成 → 评估 → 改进循环 |
-| **04_it_support** | Specialist Pool | IT 支持路由 | 关键词专家分发 + 紧急度分类 |
-| **05_tech_decision** | Debate | 技术决策支持 | 多轮辩论 + 加权标准评估 |
-| **06_code_debugger** | Reflexion | 自适应调试 | 执行 → 反思 → 调整策略 |
-| **07_codebase_analysis** | MapReduce | 大规模代码库分析 | 智能分片 → 并行映射 → 聚合 |
+| 示例 | 架构 | 业务场景 | 核心设计模式 | 状态 |
+|------|------|----------|-------------|------|
+| [**01_competitive_intelligence**](examples/production/01_competitive_intelligence/) | Research | SaaS 竞品分析 | 并行数据收集 → 综合分析 | ✅ 已完成 |
+| [**02_pr_code_review**](examples/production/02_pr_code_review/) | Pipeline | 自动化 PR 审查 | 顺序阶段门控 + 质量阈值 | ✅ 已完成 |
+| [**03_marketing_content**](examples/production/03_marketing_content/) | Critic-Actor | 营销文案优化 | 生成 → 评估 → 改进循环 | ✅ 已完成 |
+| [**04_it_support**](examples/production/04_it_support/) | Specialist Pool | IT 支持路由 | 关键词专家分发 + 紧急度分类 | ✅ 已完成 |
+| [**05_tech_decision**](examples/production/05_tech_decision/) | Debate | 技术决策支持 | 多轮辩论 + 加权标准评估 | ✅ 已完成 |
+| [**06_code_debugger**](examples/production/06_code_debugger/) | Reflexion | 自适应调试 | 执行 → 反思 → 调整策略 | ✅ 已完成 |
+| [**07_codebase_analysis**](examples/production/07_codebase_analysis/) | MapReduce | 大规模代码库分析 | 智能分片 → 并行映射 → 聚合 | ✅ 已完成 |
 
 ### 设计亮点
 

@@ -126,19 +126,23 @@ asyncio.run(main())
 
 ## Production Examples
 
-The framework includes 7 production-grade examples demonstrating real-world business scenarios. Each example showcases a specific architecture pattern applied to solve genuine enterprise challenges.
+The framework includes **7 production-grade examples** demonstrating real-world business scenarios. Each example showcases a specific architecture pattern applied to solve genuine enterprise challenges.
+
+**📁 Location**: [`examples/production/`](examples/production/)
+**📊 Status**: All 7 examples complete and production-ready
+**📚 Documentation**: Each example includes bilingual README (EN/CN), configuration guide, and architecture documentation
 
 ### Example Overview
 
-| Example | Architecture | Business Scenario | Core Design Pattern |
-|---------|--------------|-------------------|---------------------|
-| **01_competitive_intelligence** | Research | SaaS competitive analysis | Parallel data gathering → Synthesis |
-| **02_pr_code_review** | Pipeline | Automated PR review | Sequential stage gating with quality thresholds |
-| **03_marketing_content** | Critic-Actor | Marketing copy optimization | Generate → Evaluate → Improve loop |
-| **04_it_support** | Specialist Pool | IT support routing | Keyword-based expert dispatch with urgency categorization |
-| **05_tech_decision** | Debate | Technical decision support | Multi-round deliberation with weighted criteria |
-| **06_code_debugger** | Reflexion | Adaptive debugging | Execute → Reflect → Adapt strategy |
-| **07_codebase_analysis** | MapReduce | Large codebase analysis | Intelligent chunking → Parallel map → Aggregate |
+| Example | Architecture | Business Scenario | Core Design Pattern | Status |
+|---------|--------------|-------------------|---------------------|--------|
+| [**01_competitive_intelligence**](examples/production/01_competitive_intelligence/) | Research | SaaS competitive analysis | Parallel data gathering → Synthesis | ✅ Complete |
+| [**02_pr_code_review**](examples/production/02_pr_code_review/) | Pipeline | Automated PR review | Sequential stage gating with quality thresholds | ✅ Complete |
+| [**03_marketing_content**](examples/production/03_marketing_content/) | Critic-Actor | Marketing copy optimization | Generate → Evaluate → Improve loop | ✅ Complete |
+| [**04_it_support**](examples/production/04_it_support/) | Specialist Pool | IT support routing | Keyword-based expert dispatch with urgency categorization | ✅ Complete |
+| [**05_tech_decision**](examples/production/05_tech_decision/) | Debate | Technical decision support | Multi-round deliberation with weighted criteria | ✅ Complete |
+| [**06_code_debugger**](examples/production/06_code_debugger/) | Reflexion | Adaptive debugging | Execute → Reflect → Adapt strategy | ✅ Complete |
+| [**07_codebase_analysis**](examples/production/07_codebase_analysis/) | MapReduce | Large codebase analysis | Intelligent chunking → Parallel map → Aggregate | ✅ Complete |
 
 ### Design Highlights
 
