@@ -270,9 +270,21 @@ class TestRealWorldScenarios:
                 "min_confidence": 0.8,
             },
             "mapreduce_config": {
-                "mapper": {"name": "security_analyzer", "role": "Analyze security", "tools": ["Read", "Bash"]},
-                "reducer": {"name": "security_aggregator", "role": "Aggregate", "capabilities": ["Deduplication"]},
-                "coordinator": {"name": "coordinator", "role": "Orchestrate", "responsibilities": ["Chunking"]},
+                "mapper": {
+                    "name": "security_analyzer",
+                    "role": "Analyze security",
+                    "tools": ["Read", "Bash"],
+                },
+                "reducer": {
+                    "name": "security_aggregator",
+                    "role": "Aggregate",
+                    "capabilities": ["Deduplication"],
+                },
+                "coordinator": {
+                    "name": "coordinator",
+                    "role": "Orchestrate",
+                    "responsibilities": ["Chunking"],
+                },
             },
             "analysis_types": {
                 "security": {

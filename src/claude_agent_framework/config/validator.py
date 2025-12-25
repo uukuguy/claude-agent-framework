@@ -7,7 +7,6 @@ Provides validation logic for configurations and runtime checks.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 from claude_agent_framework.config.schema import (
     AgentConfigSchema,
@@ -50,9 +49,7 @@ class ConfigValidator:
 
         # Validate subagents
         for agent in config.subagents:
-            errors.extend(
-                ConfigValidator._validate_agent(agent, prompts_dir, check_files)
-            )
+            errors.extend(ConfigValidator._validate_agent(agent, prompts_dir, check_files))
 
         # Validate directory structure
         errors.extend(ConfigValidator._validate_directories(config))
@@ -73,17 +70,13 @@ class ConfigValidator:
 
         # Check if Task tool is present
         if "Task" not in config.lead_agent_tools:
-            errors.append(
-                "Lead agent must have 'Task' tool to spawn subagents"
-            )
+            errors.append("Lead agent must have 'Task' tool to spawn subagents")
 
         # Check prompt file existence
         if check_files and prompts_dir:
             prompt_path = prompts_dir / config.lead_agent_prompt_file
             if not prompt_path.exists():
-                errors.append(
-                    f"Lead agent prompt file not found: {prompt_path}"
-                )
+                errors.append(f"Lead agent prompt file not found: {prompt_path}")
 
         return errors
 
@@ -100,9 +93,7 @@ class ConfigValidator:
         if check_files and prompts_dir and agent.prompt_file:
             prompt_path = prompts_dir / agent.prompt_file
             if not prompt_path.exists():
-                errors.append(
-                    f"Agent '{agent.name}' prompt file not found: {prompt_path}"
-                )
+                errors.append(f"Agent '{agent.name}' prompt file not found: {prompt_path}")
 
         # Check that agent has at least one tool
         if not agent.tools:
@@ -142,9 +133,7 @@ class ConfigValidator:
 
         if duplicates:
             unique_duplicates = sorted(set(duplicates))
-            errors.append(
-                f"Duplicate agent names found: {', '.join(unique_duplicates)}"
-            )
+            errors.append(f"Duplicate agent names found: {', '.join(unique_duplicates)}")
 
         return errors
 

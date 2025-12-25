@@ -92,9 +92,7 @@ class AgentConfigSchema(BaseModel):
 
         invalid = [tool for tool in v if tool not in VALID_TOOLS]
         if invalid:
-            raise ValueError(
-                f"Invalid tools: {invalid}. Valid tools are: {', '.join(VALID_TOOLS)}"
-            )
+            raise ValueError(f"Invalid tools: {invalid}. Valid tools are: {', '.join(VALID_TOOLS)}")
         return v
 
     @model_validator(mode="after")
@@ -133,9 +131,7 @@ class FrameworkConfigSchema(BaseModel):
     lead_agent_tools: list[str] = Field(
         default_factory=lambda: ["Task"], description="Lead agent allowed tools"
     )
-    lead_agent_model: ModelType = Field(
-        default=ModelType.HAIKU, description="Lead agent model"
-    )
+    lead_agent_model: ModelType = Field(default=ModelType.HAIKU, description="Lead agent model")
 
     # Subagent configuration
     subagents: list[AgentConfigSchema] = Field(
@@ -161,9 +157,7 @@ class FrameworkConfigSchema(BaseModel):
     )
 
     # Feature flags
-    enable_metrics: bool = Field(
-        default=False, description="Enable metrics collection"
-    )
+    enable_metrics: bool = Field(default=False, description="Enable metrics collection")
     enable_plugins: bool = Field(default=True, description="Enable plugin system")
 
     @field_validator("lead_agent_tools")
@@ -175,9 +169,7 @@ class FrameworkConfigSchema(BaseModel):
 
         invalid = [tool for tool in v if tool not in VALID_TOOLS]
         if invalid:
-            raise ValueError(
-                f"Invalid tools: {invalid}. Valid tools are: {', '.join(VALID_TOOLS)}"
-            )
+            raise ValueError(f"Invalid tools: {invalid}. Valid tools are: {', '.join(VALID_TOOLS)}")
         return v
 
     @field_validator("logs_dir", "files_dir")
@@ -206,9 +198,7 @@ class ProfileConfigSchema(BaseModel):
         default_factory=dict, description="Agent config overrides"
     )
 
-    def apply_to_config(
-        self, config: FrameworkConfigSchema
-    ) -> FrameworkConfigSchema:
+    def apply_to_config(self, config: FrameworkConfigSchema) -> FrameworkConfigSchema:
         """
         Apply profile overrides to framework config.
 

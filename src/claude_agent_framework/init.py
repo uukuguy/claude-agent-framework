@@ -18,7 +18,6 @@ Example:
 from __future__ import annotations
 
 import logging
-import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
@@ -27,8 +26,7 @@ if TYPE_CHECKING:
 
 # Type aliases
 ArchitectureType = Literal[
-    "research", "pipeline", "critic_actor",
-    "specialist_pool", "debate", "reflexion", "mapreduce"
+    "research", "pipeline", "critic_actor", "specialist_pool", "debate", "reflexion", "mapreduce"
 ]
 ModelType = Literal["haiku", "sonnet", "opus"]
 
@@ -41,6 +39,7 @@ class InitializationError(Exception):
     - Unknown architecture name
     - Configuration errors
     """
+
     pass
 
 
@@ -52,7 +51,7 @@ def init(
     log_dir: Path | str | None = None,
     files_dir: Path | str | None = None,
     auto_setup: bool = True,
-) -> "AgentSession":
+) -> AgentSession:
     """
     Initialize Claude Agent Framework with minimal configuration.
 
@@ -121,10 +120,10 @@ def init(
         arch_class = get_architecture(architecture)
     except KeyError as e:
         from claude_agent_framework.core import list_architectures
+
         available = ", ".join(list_architectures())
         raise InitializationError(
-            f"Unknown architecture: '{architecture}'\n"
-            f"Available architectures: {available}"
+            f"Unknown architecture: '{architecture}'\nAvailable architectures: {available}"
         ) from e
 
     # 4. Create model configuration
@@ -196,4 +195,5 @@ def get_available_architectures() -> dict[str, str]:
         ...     print(f"{name}: {desc}")
     """
     from claude_agent_framework.core.registry import get_architecture_info
+
     return {name: info["description"] for name, info in get_architecture_info().items()}

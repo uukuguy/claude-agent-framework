@@ -183,7 +183,9 @@ class TestSpecialistRouting:
 
         # High priority specialist should be first
         if len(selected) > 0:
-            assert selected[0]["priority"] <= selected[-1]["priority"] if len(selected) > 1 else True
+            assert (
+                selected[0]["priority"] <= selected[-1]["priority"] if len(selected) > 1 else True
+            )
 
 
 class TestPromptBuilding:

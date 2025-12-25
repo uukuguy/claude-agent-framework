@@ -1,10 +1,12 @@
 """
 Pytest configuration and shared fixtures for claude-agent-framework tests.
 """
+
 import os
-import pytest
 from pathlib import Path
 from unittest.mock import patch
+
+import pytest
 
 
 @pytest.fixture

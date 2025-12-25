@@ -42,8 +42,7 @@ class TaskSplitter:
             SplitResult with file chunks
         """
         chunks = [
-            file_list[i : i + self.chunk_size]
-            for i in range(0, len(file_list), self.chunk_size)
+            file_list[i : i + self.chunk_size] for i in range(0, len(file_list), self.chunk_size)
         ]
         return SplitResult(
             chunks=chunks,
@@ -70,9 +69,7 @@ class TaskSplitter:
             total_items=len(aspects),
         )
 
-    def split_by_content(
-        self, content: str, max_tokens: int = 2000
-    ) -> SplitResult:
+    def split_by_content(self, content: str, max_tokens: int = 2000) -> SplitResult:
         """
         Split long content into chunks by estimated token count.
 

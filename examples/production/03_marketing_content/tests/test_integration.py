@@ -240,7 +240,11 @@ Second draft content
                 assert isinstance(evaluation[dimension]["criteria"], list)
 
             # Verify weights sum to 100
-            total_weight = sum(eval_dim["weight"] for eval_dim in evaluation.values() if isinstance(eval_dim, dict) and "weight" in eval_dim)
+            total_weight = sum(
+                eval_dim["weight"]
+                for eval_dim in evaluation.values()
+                if isinstance(eval_dim, dict) and "weight" in eval_dim
+            )
             assert total_weight == 100
 
     def test_result_saver_markdown(self, tmp_path):

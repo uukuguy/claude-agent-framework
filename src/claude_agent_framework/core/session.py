@@ -11,10 +11,11 @@ Provides AgentSession class that wraps architecture execution with:
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, AsyncIterator
+from typing import TYPE_CHECKING, Any
 
-from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient, HookMatcher
+from claude_agent_sdk import HookMatcher
 
 from claude_agent_framework.config import FrameworkConfig, validate_api_key
 from claude_agent_framework.utils import (
@@ -75,8 +76,7 @@ class AgentSession:
         # Validate API key
         if not validate_api_key():
             raise RuntimeError(
-                "ANTHROPIC_API_KEY environment variable is not set. "
-                "Please set it before running."
+                "ANTHROPIC_API_KEY environment variable is not set. Please set it before running."
             )
 
         # Ensure directories exist
@@ -190,7 +190,7 @@ class AgentSession:
             messages.append(msg)
         return messages
 
-    async def __aenter__(self) -> "AgentSession":
+    async def __aenter__(self) -> AgentSession:
         """Async context manager entry."""
         await self.setup()
         return self
@@ -283,7 +283,9 @@ class CompositeSession:
         current_input = prompt
 
         for i, session in enumerate(self._sessions):
-            logger.info(f"Running architecture {i + 1}/{len(self._sessions)}: {session.architecture.name}")
+            logger.info(
+                f"Running architecture {i + 1}/{len(self._sessions)}: {session.architecture.name}"
+            )
 
             async for msg in session.run(current_input):
                 yield msg
@@ -293,7 +295,7 @@ class CompositeSession:
             if result:
                 current_input = str(result)
 
-    async def __aenter__(self) -> "CompositeSession":
+    async def __aenter__(self) -> CompositeSession:
         await self.setup()
         return self
 

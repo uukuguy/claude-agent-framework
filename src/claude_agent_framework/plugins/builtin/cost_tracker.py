@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 from claude_agent_framework.plugins.base import BasePlugin, PluginContext
 
 if TYPE_CHECKING:
-    from claude_agent_framework.metrics.collector import TokenMetrics
+    pass
 
 
 class CostTrackerPlugin(BasePlugin):
@@ -105,15 +105,15 @@ class CostTrackerPlugin(BasePlugin):
         self._agent_costs[agent_type]["call_count"] += 1
         return agent_prompt
 
-    async def on_agent_complete(
-        self, agent_type: str, result: Any, context: PluginContext
-    ) -> Any:
+    async def on_agent_complete(self, agent_type: str, result: Any, context: PluginContext) -> Any:
         """Update cost tracking after agent completion."""
         # In a real implementation, would extract token usage from result
         # For now, this is a placeholder for the integration point
         return result
 
-    def record_tokens(self, input_tokens: int, output_tokens: int, agent_type: str | None = None) -> None:
+    def record_tokens(
+        self, input_tokens: int, output_tokens: int, agent_type: str | None = None
+    ) -> None:
         """
         Record token usage.
 

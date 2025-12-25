@@ -228,9 +228,7 @@ class TestIntegration:
         }
 
         # Critical
-        urgency, sla = _categorize_urgency(
-            "System down", "Complete outage", categorization_config
-        )
+        urgency, sla = _categorize_urgency("System down", "Complete outage", categorization_config)
         assert urgency == "critical"
         assert sla == 1
 

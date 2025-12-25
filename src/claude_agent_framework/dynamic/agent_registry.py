@@ -7,7 +7,7 @@ agents dynamically during architecture execution.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from claude_agent_framework.dynamic.validator import validate_agent_config
 

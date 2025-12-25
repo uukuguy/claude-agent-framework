@@ -84,6 +84,7 @@ dev-dependencies = [
     "pytest-cov>=4.0.0",
     "ruff>=0.1.0",
     "mypy>=1.0.0",
+    "types-pyyaml>=6.0.12.20250915",
 ]
 
 # Package resolution configuration
@@ -96,6 +97,10 @@ managed = true
 [tool.uv.pip]
 # Pip compatibility settings
 index-strategy = "first-index"
+
+[[tool.uv.index]]
+url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple"
+default = true
 
 [tool.ruff]
 line-length = 100

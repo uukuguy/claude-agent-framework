@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from claude_agent_framework.plugins.base import BasePlugin, PluginContext
 
@@ -59,7 +60,7 @@ class ExponentialBackoff(RetryStrategy):
 
     def get_delay(self, attempt: int) -> float:
         """Calculate exponential backoff delay."""
-        delay = self.initial_delay * (self.multiplier ** attempt)
+        delay = self.initial_delay * (self.multiplier**attempt)
         return min(delay, self.max_delay)
 
 

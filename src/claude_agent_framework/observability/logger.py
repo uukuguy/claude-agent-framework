@@ -154,7 +154,9 @@ class EventLogger:
         """Log session end event."""
         return self.log_event(EventType.SESSION_END, "Session ended", **metadata)
 
-    def agent_spawn(self, agent_type: str, agent_prompt: str | None = None, **metadata: Any) -> LogEvent:
+    def agent_spawn(
+        self, agent_type: str, agent_prompt: str | None = None, **metadata: Any
+    ) -> LogEvent:
         """Log agent spawn event."""
         return self.log_event(
             EventType.AGENT_SPAWN,
@@ -167,10 +169,15 @@ class EventLogger:
     def agent_complete(self, agent_type: str, **metadata: Any) -> LogEvent:
         """Log agent completion event."""
         return self.log_event(
-            EventType.AGENT_COMPLETE, f"Agent {agent_type} completed", agent_type=agent_type, **metadata
+            EventType.AGENT_COMPLETE,
+            f"Agent {agent_type} completed",
+            agent_type=agent_type,
+            **metadata,
         )
 
-    def tool_call(self, tool_name: str, tool_input: dict[str, Any] | None = None, **metadata: Any) -> LogEvent:
+    def tool_call(
+        self, tool_name: str, tool_input: dict[str, Any] | None = None, **metadata: Any
+    ) -> LogEvent:
         """Log tool call event."""
         return self.log_event(
             EventType.TOOL_CALL,
@@ -276,7 +283,11 @@ class EventLogger:
 
         with output_path.open("w") as f:
             json.dump(
-                {"session_id": self.session_id, "events": events_data, "summary": self.get_event_summary()},
+                {
+                    "session_id": self.session_id,
+                    "events": events_data,
+                    "summary": self.get_event_summary(),
+                },
                 f,
                 indent=2,
             )

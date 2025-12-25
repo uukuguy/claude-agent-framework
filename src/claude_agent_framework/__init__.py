@@ -25,13 +25,6 @@ CLI Usage:
 """
 
 # Primary API - simplified initialization (recommended)
-from claude_agent_framework.init import (
-    InitializationError,
-    get_available_architectures,
-    init,
-    quick_query,
-)
-
 # Legacy imports for backwards compatibility
 from claude_agent_framework.agent import main, run_research_session
 from claude_agent_framework.config import (
@@ -46,6 +39,12 @@ from claude_agent_framework.core import (
     get_architecture,
     list_architectures,
     register_architecture,
+)
+from claude_agent_framework.init import (
+    InitializationError,
+    get_available_architectures,
+    init,
+    quick_query,
 )
 from claude_agent_framework.utils import (
     QuietTranscriptWriter,

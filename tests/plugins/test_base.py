@@ -18,9 +18,7 @@ class TestPluginContext:
 
     def test_plugin_context_initialization(self):
         """Test PluginContext can be initialized with required fields."""
-        context = PluginContext(
-            architecture_name="research", session_id="test-session-123"
-        )
+        context = PluginContext(architecture_name="research", session_id="test-session-123")
 
         assert context.architecture_name == "research"
         assert context.session_id == "test-session-123"
@@ -41,9 +39,7 @@ class TestPluginContext:
 
     def test_plugin_context_shared_state_is_mutable(self):
         """Test that shared_state can be modified."""
-        context = PluginContext(
-            architecture_name="research", session_id="test-session"
-        )
+        context = PluginContext(architecture_name="research", session_id="test-session")
 
         context.shared_state["key"] = "value"
         assert context.shared_state["key"] == "value"
@@ -86,17 +82,13 @@ class CounterPlugin(BasePlugin):
         self.agent_spawn_count += 1
         return agent_prompt
 
-    async def on_agent_complete(
-        self, agent_type: str, result, context: PluginContext
-    ) -> None:
+    async def on_agent_complete(self, agent_type: str, result, context: PluginContext) -> None:
         self.agent_complete_count += 1
 
     async def on_tool_call(self, tool_name: str, tool_input: dict, context: PluginContext) -> None:
         self.tool_call_count += 1
 
-    async def on_tool_result(
-        self, tool_name: str, result, context: PluginContext
-    ) -> None:
+    async def on_tool_result(self, tool_name: str, result, context: PluginContext) -> None:
         self.tool_result_count += 1
 
     async def on_error(self, error: Exception, context: PluginContext) -> bool:
@@ -147,9 +139,7 @@ class TestBasePlugin:
     async def test_plugin_hooks_are_async(self):
         """Test that all plugin hooks can be called as async functions."""
         plugin = CounterPlugin()
-        context = PluginContext(
-            architecture_name="test", session_id="test-session"
-        )
+        context = PluginContext(architecture_name="test", session_id="test-session")
 
         # Should not raise
         await plugin.on_session_start(context)
@@ -318,9 +308,7 @@ class TestPluginManager:
         manager.register(plugin)
 
         context = PluginContext(architecture_name="test", session_id="test")
-        result = await manager.trigger_agent_spawn(
-            "researcher", "research prompt", context
-        )
+        result = await manager.trigger_agent_spawn("researcher", "research prompt", context)
 
         assert result == "[AGENT: researcher] research prompt"
 
@@ -368,9 +356,7 @@ class TestPluginManager:
         manager.register(plugin)
 
         context = PluginContext(architecture_name="test", session_id="test")
-        should_continue = await manager.trigger_error(
-            Exception("test error"), context
-        )
+        should_continue = await manager.trigger_error(Exception("test error"), context)
 
         assert should_continue is True
 
@@ -382,9 +368,7 @@ class TestPluginManager:
         manager.register(plugin)
 
         context = PluginContext(architecture_name="test", session_id="test")
-        should_continue = await manager.trigger_error(
-            Exception("test error"), context
-        )
+        should_continue = await manager.trigger_error(Exception("test error"), context)
 
         assert should_continue is False
 

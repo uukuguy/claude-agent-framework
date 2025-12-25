@@ -14,14 +14,14 @@ import sys
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 # Add parent directories to path for common utilities
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from claude_agent_framework import init
 from common import ResultSaver, load_yaml_config, validate_config
+
+from claude_agent_framework import init
 
 
 class ConfigurationError(Exception):
@@ -168,8 +168,7 @@ def _build_debate_prompt(
         weight = config.get("weight", 0)
         sub_criteria = config.get("sub_criteria", [])
         criteria_desc.append(
-            f"- **{criterion.replace('_', ' ').title()}** ({weight}%): "
-            + ", ".join(sub_criteria)
+            f"- **{criterion.replace('_', ' ').title()}** ({weight}%): " + ", ".join(sub_criteria)
         )
 
     criteria_text = "\n".join(criteria_desc)
@@ -198,7 +197,7 @@ def _build_debate_prompt(
 
 ## Options Being Evaluated
 
-{chr(10).join(f"- **Option {i+1}**: {opt}" for i, opt in enumerate(options))}
+{chr(10).join(f"- **Option {i + 1}**: {opt}" for i, opt in enumerate(options))}
 
 ## Requirements
 
@@ -206,10 +205,10 @@ def _build_debate_prompt(
 
 ## Constraints
 
-Budget: {constraints.get('budget', 'Not specified')}
-Timeline: {constraints.get('timeline', 'Not specified')}
-Team Size: {constraints.get('team_size', 'Not specified')}
-Existing Tech Stack: {constraints.get('tech_stack', 'Not specified')}
+Budget: {constraints.get("budget", "Not specified")}
+Timeline: {constraints.get("timeline", "Not specified")}
+Team Size: {constraints.get("team_size", "Not specified")}
+Existing Tech Stack: {constraints.get("tech_stack", "Not specified")}
 
 ## Debate Format
 
@@ -217,17 +216,17 @@ You are conducting a structured debate with {rounds} rounds to evaluate this tec
 
 ### Participants
 
-**Proponent ({participants_config['proponent']['name']})**:
-Role: {participants_config['proponent']['role']}
-Focus: {', '.join(participants_config['proponent']['focus_areas'])}
+**Proponent ({participants_config["proponent"]["name"]})**:
+Role: {participants_config["proponent"]["role"]}
+Focus: {", ".join(participants_config["proponent"]["focus_areas"])}
 
-**Opponent ({participants_config['opponent']['name']})**:
-Role: {participants_config['opponent']['role']}
-Focus: {', '.join(participants_config['opponent']['focus_areas'])}
+**Opponent ({participants_config["opponent"]["name"]})**:
+Role: {participants_config["opponent"]["role"]}
+Focus: {", ".join(participants_config["opponent"]["focus_areas"])}
 
-**Judge ({participants_config['judge']['name']})**:
-Role: {participants_config['judge']['role']}
-Expertise: {', '.join(participants_config['judge']['expertise'])}
+**Judge ({participants_config["judge"]["name"]})**:
+Role: {participants_config["judge"]["role"]}
+Expertise: {", ".join(participants_config["judge"]["expertise"])}
 
 ### Debate Structure
 
@@ -239,9 +238,21 @@ Expertise: {', '.join(participants_config['judge']['expertise'])}
 
 ## Debate Rules
 
-{f"- **Fact-Checking Enabled**: All claims must be verifiable" if advanced.get('enable_fact_checking') else ""}
-{f"- **Evidence Required**: Arguments must cite sources and data" if advanced.get('require_evidence') else ""}
-{f"- **Structured Scoring**: Use rubric-based evaluation" if advanced.get('structured_scoring') else ""}
+{
+        "- **Fact-Checking Enabled**: All claims must be verifiable"
+        if advanced.get("enable_fact_checking")
+        else ""
+    }
+{
+        "- **Evidence Required**: Arguments must cite sources and data"
+        if advanced.get("require_evidence")
+        else ""
+    }
+{
+        "- **Structured Scoring**: Use rubric-based evaluation"
+        if advanced.get("structured_scoring")
+        else ""
+    }
 
 ## Output Format
 
@@ -275,9 +286,14 @@ Structure your debate as follows:
 
 For each criterion, provide scores (0-100) for each option:
 
-{chr(10).join(f'''**{criterion.replace('_', ' ').title()} ({config['weight']}%)**
+{
+        chr(10).join(
+            f'''**{criterion.replace('_', ' ').title()} ({config['weight']}%)**
 {chr(10).join(f"- {opt}: [score]/100 - [brief justification]" for opt in options)}
-''' for criterion, config in evaluation_criteria.items())}
+'''
+            for criterion, config in evaluation_criteria.items()
+        )
+    }
 
 **Overall Weighted Score**
 {chr(10).join(f"- {opt}: [calculated score]/100" for opt in options)}
@@ -388,9 +404,7 @@ def _parse_debate_transcript(results: list[str]) -> list[dict]:
     return transcript
 
 
-def _extract_evaluation_scores(
-    results: list[str], evaluation_criteria: dict
-) -> dict[str, dict]:
+def _extract_evaluation_scores(results: list[str], evaluation_criteria: dict) -> dict[str, dict]:
     """Extract evaluation scores from debate results.
 
     Args:
@@ -443,7 +457,7 @@ def _extract_final_recommendation(results: list[str]) -> dict:
     # Look for Final Recommendation section
     if "### Final Recommendation" in full_text:
         rec_start = full_text.index("### Final Recommendation")
-        rec_section = full_text[rec_start:rec_start + 2000]  # Take next 2000 chars
+        rec_section = full_text[rec_start : rec_start + 2000]  # Take next 2000 chars
 
         # Extract recommended option
         if "**Recommended Option**:" in rec_section:
@@ -479,7 +493,7 @@ def _extract_risk_assessment(results: list[str]) -> list[dict]:
 
     if "**Acknowledged Risks**:" in full_text:
         risks_start = full_text.index("**Acknowledged Risks**:")
-        risks_section = full_text[risks_start:risks_start + 1000]
+        risks_section = full_text[risks_start : risks_start + 1000]
 
         # Extract numbered risks
         lines = risks_section.split("\n")
@@ -506,7 +520,7 @@ def _extract_implementation_roadmap(results: list[str]) -> dict:
 
     if "**Implementation Roadmap**:" in full_text:
         roadmap_start = full_text.index("**Implementation Roadmap**:")
-        roadmap_section = full_text[roadmap_start:roadmap_start + 2000]
+        roadmap_section = full_text[roadmap_start : roadmap_start + 2000]
 
         # Extract phases
         for phase_name in ["Phase 1", "Phase 2", "Phase 3"]:
@@ -555,9 +569,7 @@ def _generate_summary(
     return f"Evaluated: {decision_question}. Recommendation: {recommended}. {first_sentence}"
 
 
-def _calculate_overall_score(
-    evaluation_scores: dict, evaluation_criteria: dict
-) -> float:
+def _calculate_overall_score(evaluation_scores: dict, evaluation_criteria: dict) -> float:
     """Calculate weighted overall score.
 
     Args:

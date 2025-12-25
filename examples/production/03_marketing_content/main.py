@@ -10,13 +10,11 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 # Add parent directories to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from claude_agent_framework import init
 from common import (
     ConfigurationError,
     ExecutionError,
@@ -25,6 +23,8 @@ from common import (
     setup_logging,
     validate_config,
 )
+
+from claude_agent_framework import init
 
 logger = logging.getLogger(__name__)
 
@@ -132,10 +132,10 @@ def _build_critic_actor_prompt(
 
     # Format brand guidelines
     brand_text = f"""
-**Brand Voice**: {brand_config['voice']}
-**Tone Attributes**: {', '.join(brand_config['tone'])}
-**Company Values**: {', '.join(brand_config['values'])}
-**Prohibited Phrases**: {', '.join(brand_config.get('prohibited_phrases', []))}
+**Brand Voice**: {brand_config["voice"]}
+**Tone Attributes**: {", ".join(brand_config["tone"])}
+**Company Values**: {", ".join(brand_config["values"])}
+**Prohibited Phrases**: {", ".join(brand_config.get("prohibited_phrases", []))}
 """
 
     # Format target length
@@ -157,12 +157,12 @@ def _build_critic_actor_prompt(
 
 ## Content Brief
 
-**Content Type**: {content_config['type']}
+**Content Type**: {content_config["type"]}
 {length_text}
 {keywords_text}
 
 **Brief**:
-{content_config['brief']}
+{content_config["brief"]}
 
 ## Brand Guidelines
 {brand_text}
@@ -181,9 +181,9 @@ Evaluate the content on a 0-100 scale across these dimensions:
    - Overall score (weighted average)
    - Specific feedback for improvement
 3. **Actor**: Revise content based on critic feedback
-4. **Repeat** for up to {iteration_config['max_iterations']} iterations or until:
-   - Overall score ≥ {iteration_config['quality_threshold']}
-   - Improvement < {iteration_config.get('min_improvement', 5)}%
+4. **Repeat** for up to {iteration_config["max_iterations"]} iterations or until:
+   - Overall score ≥ {iteration_config["quality_threshold"]}
+   - Improvement < {iteration_config.get("min_improvement", 5)}%
 
 ## Output Format
 
@@ -240,7 +240,9 @@ def _parse_optimization_results(results: list[str]) -> tuple[str, list[dict], fl
 
         # Extract iteration number
         lines = block.split("\n")
-        iteration_num = int(lines[0].strip().split()[0]) if lines[0].strip() else len(iterations) + 1
+        iteration_num = (
+            int(lines[0].strip().split()[0]) if lines[0].strip() else len(iterations) + 1
+        )
 
         # Extract content
         content_start = block.find("**Content**:")
@@ -326,7 +328,7 @@ async def _generate_ab_variants(
 
     for i in range(min(num_variants, len(angles))):
         angle = angles[i]
-        logger.info(f"Generating variant {i+1} with angle: {angle}")
+        logger.info(f"Generating variant {i + 1} with angle: {angle}")
 
         prompt = f"""Generate a variant of this marketing content with a different angle.
 
@@ -336,8 +338,8 @@ async def _generate_ab_variants(
 **Variant Angle**: {angle}
 
 **Brand Guidelines**:
-- Voice: {brand_config['voice']}
-- Tone: {', '.join(brand_config['tone'])}
+- Voice: {brand_config["voice"]}
+- Tone: {", ".join(brand_config["tone"])}
 
 **Requirements**:
 - Maintain the same key information and CTA
@@ -390,9 +392,7 @@ Improvement: +{improvement:.1f} points"""
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(description="Marketing Content Optimization")
-    parser.add_argument(
-        "--config", type=str, default="config.yaml", help="Configuration file path"
-    )
+    parser.add_argument("--config", type=str, default="config.yaml", help="Configuration file path")
     parser.add_argument(
         "--output-format",
         type=str,
@@ -449,7 +449,7 @@ def main():
 
         output_path = saver.save(result, format=output_format, filename=output_file)
 
-        print(f"\n✅ Optimization complete!")
+        print("\n✅ Optimization complete!")
         print(f"📄 Output saved to: {output_path}")
         print(f"📊 Final score: {result['final_score']}/100")
         print(f"🔄 Iterations: {result['metadata']['num_iterations']}")

@@ -9,8 +9,9 @@ Implements sequential stage processing:
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, AsyncIterator
+from typing import TYPE_CHECKING, Any
 
 from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient, HookMatcher
 
@@ -164,12 +165,8 @@ You are the coordinator for the Pipeline architecture, responsible for dispatchi
         hooks: dict[str, list] = {}
 
         if tracker:
-            hooks["PreToolUse"] = [
-                HookMatcher(matcher=None, hooks=[tracker.pre_tool_use_hook])
-            ]
-            hooks["PostToolUse"] = [
-                HookMatcher(matcher=None, hooks=[tracker.post_tool_use_hook])
-            ]
+            hooks["PreToolUse"] = [HookMatcher(matcher=None, hooks=[tracker.pre_tool_use_hook])]
+            hooks["PostToolUse"] = [HookMatcher(matcher=None, hooks=[tracker.post_tool_use_hook])]
 
         return hooks
 
@@ -184,9 +181,7 @@ You are the coordinator for the Pipeline architecture, responsible for dispatchi
         Args:
             stages: List of stage names to include
         """
-        self.pipeline_config.stages = [
-            s for s in self.pipeline_config.stages if s.name in stages
-        ]
+        self.pipeline_config.stages = [s for s in self.pipeline_config.stages if s.name in stages]
 
     def transform_stage_output(self, stage: str, output: str) -> str:
         """

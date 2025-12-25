@@ -179,7 +179,9 @@ class SessionDebugger:
                         "timestamp": event.timestamp,
                         "input": event.metadata.get("tool_input", {}),
                         "result": result_event.metadata if result_event else None,
-                        "success": result_event.metadata.get("success", False) if result_event else None,
+                        "success": result_event.metadata.get("success", False)
+                        if result_event
+                        else None,
                     }
                 )
 

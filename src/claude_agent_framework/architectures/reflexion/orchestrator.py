@@ -10,9 +10,10 @@ Implements execute-reflect-improve cycle:
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, AsyncIterator
+from typing import TYPE_CHECKING, Any
 
 from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient, HookMatcher
 
@@ -104,7 +105,9 @@ class ReflexionArchitecture(BaseArchitecture):
         """Get lead agent prompt for reflexion coordination."""
         base_prompt = super().get_lead_prompt()
 
-        return base_prompt + f"""
+        return (
+            base_prompt
+            + f"""
 # Reflexion Coordinator
 
 You are responsible for coordinating the execute-reflect-improve loop until the task is successfully completed.
@@ -149,8 +152,8 @@ while attempt < max_attempts:
 
 # Success Criteria
 Observe execution results for:
-- Success indicators: {', '.join(self.reflexion_config.success_indicators)}
-- Failure indicators: {', '.join(self.reflexion_config.failure_indicators)}
+- Success indicators: {", ".join(self.reflexion_config.success_indicators)}
+- Failure indicators: {", ".join(self.reflexion_config.failure_indicators)}
 
 # Output Specification
 After each attempt, report:
@@ -159,6 +162,7 @@ After each attempt, report:
 - Success status
 - Next strategy (if continuing)
 """
+        )
 
     async def execute(
         self,
@@ -196,12 +200,8 @@ After each attempt, report:
         hooks: dict[str, list] = {}
 
         if tracker:
-            hooks["PreToolUse"] = [
-                HookMatcher(matcher=None, hooks=[tracker.pre_tool_use_hook])
-            ]
-            hooks["PostToolUse"] = [
-                HookMatcher(matcher=None, hooks=[tracker.post_tool_use_hook])
-            ]
+            hooks["PreToolUse"] = [HookMatcher(matcher=None, hooks=[tracker.pre_tool_use_hook])]
+            hooks["PostToolUse"] = [HookMatcher(matcher=None, hooks=[tracker.post_tool_use_hook])]
 
         return hooks
 

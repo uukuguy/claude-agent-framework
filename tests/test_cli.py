@@ -1,7 +1,6 @@
 """Tests for CLI commands."""
 
 import json
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -100,7 +99,9 @@ class TestCLICommands:
 
     @patch("claude_agent_framework.observability.SessionVisualizer")
     @patch("claude_agent_framework.cli.webbrowser")
-    def test_cmd_view_success(self, mock_webbrowser, mock_visualizer, sample_events_file, tmp_path, capsys):
+    def test_cmd_view_success(
+        self, mock_webbrowser, mock_visualizer, sample_events_file, tmp_path, capsys
+    ):
         """Test view command success."""
         args = MagicMock()
         args.session_file = str(sample_events_file)
@@ -155,7 +156,9 @@ class TestCLICommands:
 
     @patch("claude_agent_framework.observability.SessionVisualizer")
     @patch("claude_agent_framework.cli.webbrowser")
-    def test_cmd_report_success(self, mock_webbrowser, mock_visualizer, sample_events_file, tmp_path, capsys):
+    def test_cmd_report_success(
+        self, mock_webbrowser, mock_visualizer, sample_events_file, tmp_path, capsys
+    ):
         """Test report command success."""
         args = MagicMock()
         args.session_file = str(sample_events_file)

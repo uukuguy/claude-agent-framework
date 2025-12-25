@@ -144,7 +144,6 @@ Issues Found:
         assert critical_issues[0]["file"] == "auth.py"
         assert critical_issues[0]["line"] == 45
 
-
     def test_extract_issues_from_top_list(self):
         """Test extraction of issues from top issues list."""
         from main import _extract_issues
@@ -442,7 +441,6 @@ Issues Found:
             assert result["metrics"]["total_files"] == 100
             assert result["metrics"]["total_lines"] == 10000
 
-
     async def test_missing_config_fields(self):
         """Test error handling for missing config."""
         from main import ConfigurationError, run_codebase_analysis
@@ -451,7 +449,6 @@ Issues Found:
 
         with pytest.raises((ConfigurationError, ValueError)):
             await run_codebase_analysis(config, "/path/to/codebase")
-
 
     async def test_invalid_architecture(self):
         """Test error for wrong architecture."""

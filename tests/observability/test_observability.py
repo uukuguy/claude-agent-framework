@@ -1,7 +1,6 @@
 """Tests for observability module."""
 
 import json
-from pathlib import Path
 
 import pytest
 
@@ -67,9 +66,7 @@ class TestEventLogger:
     def test_initialization(self, tmp_path):
         """Test logger initialization."""
         log_file = tmp_path / "test.log"
-        logger = EventLogger(
-            session_id="test-session", log_file=log_file, console_output=False
-        )
+        logger = EventLogger(session_id="test-session", log_file=log_file, console_output=False)
 
         assert logger.session_id == "test-session"
         assert logger.log_file == log_file
@@ -79,9 +76,7 @@ class TestEventLogger:
         """Test logging an event."""
         logger = EventLogger(session_id="test-123", console_output=False)
 
-        event = logger.log_event(
-            EventType.CUSTOM, message="Test message", test_key="test_value"
-        )
+        event = logger.log_event(EventType.CUSTOM, message="Test message", test_key="test_value")
 
         assert event.event == EventType.CUSTOM
         assert event.session_id == "test-123"
@@ -131,9 +126,7 @@ class TestEventLogger:
         """Test tool call logging."""
         logger = EventLogger(session_id="test-123", console_output=False)
 
-        event = logger.tool_call(
-            tool_name="WebSearch", tool_input={"query": "test query"}
-        )
+        event = logger.tool_call(tool_name="WebSearch", tool_input={"query": "test query"})
 
         assert event.event == EventType.TOOL_CALL
         assert event.metadata["tool_name"] == "WebSearch"

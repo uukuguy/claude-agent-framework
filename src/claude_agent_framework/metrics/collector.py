@@ -178,9 +178,7 @@ class SessionMetrics:
             "architecture_name": self.architecture_name,
             "started_at": datetime.fromtimestamp(self.started_at).isoformat(),
             "completed_at": (
-                datetime.fromtimestamp(self.completed_at).isoformat()
-                if self.completed_at
-                else None
+                datetime.fromtimestamp(self.completed_at).isoformat() if self.completed_at else None
             ),
             "duration_ms": self.duration_ms,
             "agents": {
@@ -243,9 +241,7 @@ class MetricsCollector:
             session_id: Unique session identifier
             architecture_name: Name of the architecture being executed
         """
-        self.metrics = SessionMetrics(
-            session_id=session_id, architecture_name=architecture_name
-        )
+        self.metrics = SessionMetrics(session_id=session_id, architecture_name=architecture_name)
         self._active_agents: dict[str, AgentMetrics] = {}
         self._active_tools: dict[str, ToolMetrics] = {}
 
@@ -279,9 +275,7 @@ class MetricsCollector:
 
         return agent_id
 
-    def end_agent(
-        self, agent_id: str, status: str = "completed", error: str | None = None
-    ) -> None:
+    def end_agent(self, agent_id: str, status: str = "completed", error: str | None = None) -> None:
         """
         Record agent completion.
 
@@ -311,9 +305,7 @@ class MetricsCollector:
         if call_id is None:
             call_id = f"{tool_name}_{len(self.metrics.tools)}"
 
-        tool_metrics = ToolMetrics(
-            tool_name=tool_name, called_at=time.time(), status="pending"
-        )
+        tool_metrics = ToolMetrics(tool_name=tool_name, called_at=time.time(), status="pending")
         self.metrics.tools.append(tool_metrics)
         self._active_tools[call_id] = tool_metrics
 

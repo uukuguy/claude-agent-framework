@@ -96,9 +96,7 @@ class ExpertRouter:
             reasoning_parts = []
             for name in selected:
                 if name in matches:
-                    reasoning_parts.append(
-                        f"{name}: 匹配关键词 {', '.join(matches[name])}"
-                    )
+                    reasoning_parts.append(f"{name}: 匹配关键词 {', '.join(matches[name])}")
             reasoning = "; ".join(reasoning_parts)
         else:
             reasoning = "未找到匹配的专家，将使用默认专家"

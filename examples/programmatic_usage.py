@@ -17,8 +17,6 @@ logger = logging.getLogger(__name__)
 async def programmatic_example():
     """Programmatic usage with full control over components."""
     from claude_agent_framework import init
-    from claude_agent_framework.utils.tracker import SubagentTracker
-    from claude_agent_framework.utils.transcript import TranscriptWriter
 
     # Initialize session
     session = init(
@@ -82,7 +80,7 @@ async def multiple_queries_example():
     ]
 
     for query in queries:
-        print(f"\n{'='*40}")
+        print(f"\n{'=' * 40}")
         print(f"Query: {query}")
         print("=" * 40)
 

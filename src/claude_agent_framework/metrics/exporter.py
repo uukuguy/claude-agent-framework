@@ -12,7 +12,6 @@ from __future__ import annotations
 import csv
 import json
 from pathlib import Path
-from typing import Any
 
 from claude_agent_framework.metrics.collector import SessionMetrics
 
@@ -79,9 +78,9 @@ class MetricsExporter:
         writer.writerow(["Estimated Cost (USD)", f"${metrics.estimated_cost_usd:.4f}"])
 
         # Memory metrics
-        writer.writerow(["Peak Memory (MB)", f"{metrics.peak_memory_bytes / (1024*1024):.2f}"])
+        writer.writerow(["Peak Memory (MB)", f"{metrics.peak_memory_bytes / (1024 * 1024):.2f}"])
         writer.writerow(
-            ["Average Memory (MB)", f"{metrics.average_memory_bytes / (1024*1024):.2f}"]
+            ["Average Memory (MB)", f"{metrics.average_memory_bytes / (1024 * 1024):.2f}"]
         )
 
         return output.getvalue()
@@ -107,12 +106,14 @@ class MetricsExporter:
 
         # Agent rows
         for agent in metrics.agents:
-            writer.writerow([
-                agent.agent_type,
-                f"{agent.duration_ms:.2f}",
-                agent.status,
-                agent.error or "",
-            ])
+            writer.writerow(
+                [
+                    agent.agent_type,
+                    f"{agent.duration_ms:.2f}",
+                    agent.status,
+                    agent.error or "",
+                ]
+            )
 
         return output.getvalue()
 
@@ -137,12 +138,14 @@ class MetricsExporter:
 
         # Tool rows
         for tool in metrics.tools:
-            writer.writerow([
-                tool.tool_name,
-                f"{tool.duration_ms:.2f}",
-                tool.status,
-                tool.error or "",
-            ])
+            writer.writerow(
+                [
+                    tool.tool_name,
+                    f"{tool.duration_ms:.2f}",
+                    tool.status,
+                    tool.error or "",
+                ]
+            )
 
         return output.getvalue()
 

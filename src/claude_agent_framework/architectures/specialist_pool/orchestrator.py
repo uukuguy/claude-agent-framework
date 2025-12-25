@@ -10,8 +10,9 @@ Implements expert routing and dispatch:
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, AsyncIterator
+from typing import TYPE_CHECKING, Any
 
 from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient, HookMatcher
 
@@ -83,7 +84,9 @@ class SpecialistPoolArchitecture(BaseArchitecture):
             for e in self.pool_config.experts
         )
 
-        return base_prompt + f"""
+        return (
+            base_prompt
+            + f"""
 # Specialist Pool Coordinator
 
 You are the routing coordinator for the expert pool architecture, responsible for analyzing user questions and dispatching to appropriate experts.
@@ -108,6 +111,7 @@ You are the routing coordinator for the expert pool architecture, responsible fo
 2. Dispatch tasks to experts
 3. Aggregate expert responses
 """
+        )
 
     async def execute(
         self,
@@ -129,7 +133,7 @@ You are the routing coordinator for the expert pool architecture, responsible fo
 User Question: {prompt}
 
 Routing Analysis:
-- Recommended Experts: {', '.join(routing.experts)}
+- Recommended Experts: {", ".join(routing.experts)}
 - Confidence: {routing.confidence:.2f}
 - Reasoning: {routing.reasoning}
 
@@ -162,12 +166,8 @@ Please dispatch tasks to appropriate experts based on the above analysis.
         hooks: dict[str, list] = {}
 
         if tracker:
-            hooks["PreToolUse"] = [
-                HookMatcher(matcher=None, hooks=[tracker.pre_tool_use_hook])
-            ]
-            hooks["PostToolUse"] = [
-                HookMatcher(matcher=None, hooks=[tracker.post_tool_use_hook])
-            ]
+            hooks["PreToolUse"] = [HookMatcher(matcher=None, hooks=[tracker.pre_tool_use_hook])]
+            hooks["PostToolUse"] = [HookMatcher(matcher=None, hooks=[tracker.post_tool_use_hook])]
 
         return hooks
 

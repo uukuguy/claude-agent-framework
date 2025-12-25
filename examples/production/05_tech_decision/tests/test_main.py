@@ -143,7 +143,6 @@ class TestEvaluationScoring:
         # Should return dict structure
         assert isinstance(scores, dict)
 
-
     def test_calculate_overall_score(self):
         """Test weighted score calculation."""
         from main import _calculate_overall_score
@@ -352,7 +351,6 @@ Microservices increase operational complexity and network latency.
 
             assert result["decision"]["question"] == decision_question
             assert "microservices" in result["title"].lower()
-
 
     async def test_missing_config_fields(self):
         """Test error handling for missing required config."""

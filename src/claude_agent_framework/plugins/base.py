@@ -140,9 +140,7 @@ class BasePlugin(ABC):
         """
         return agent_prompt
 
-    async def on_agent_complete(
-        self, agent_type: str, result: Any, context: PluginContext
-    ) -> None:
+    async def on_agent_complete(self, agent_type: str, result: Any, context: PluginContext) -> None:
         """
         Called when a subagent completes.
 
@@ -171,9 +169,7 @@ class BasePlugin(ABC):
         """
         pass
 
-    async def on_tool_result(
-        self, tool_name: str, result: Any, context: PluginContext
-    ) -> None:
+    async def on_tool_result(self, tool_name: str, result: Any, context: PluginContext) -> None:
         """
         Called after a tool returns a result.
 
@@ -309,9 +305,7 @@ class PluginManager:
         for plugin in self._plugins:
             await plugin.on_session_end(context)
 
-    async def trigger_before_execute(
-        self, prompt: str, context: PluginContext
-    ) -> str:
+    async def trigger_before_execute(self, prompt: str, context: PluginContext) -> str:
         """
         Trigger on_before_execute hook on all plugins.
 
@@ -322,9 +316,7 @@ class PluginManager:
             result = await plugin.on_before_execute(result, context)
         return result
 
-    async def trigger_after_execute(
-        self, result: Any, context: PluginContext
-    ) -> Any:
+    async def trigger_after_execute(self, result: Any, context: PluginContext) -> Any:
         """
         Trigger on_after_execute hook on all plugins.
 
@@ -369,9 +361,7 @@ class PluginManager:
         for plugin in self._plugins:
             await plugin.on_tool_result(tool_name, result, context)
 
-    async def trigger_error(
-        self, error: Exception, context: PluginContext
-    ) -> bool:
+    async def trigger_error(self, error: Exception, context: PluginContext) -> bool:
         """
         Trigger on_error hook on all plugins.
 

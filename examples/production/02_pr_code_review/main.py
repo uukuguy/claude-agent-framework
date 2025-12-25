@@ -197,19 +197,17 @@ def _build_pipeline_prompt(stages: list[dict], pr_data: dict, analysis_config: d
         Formatted prompt string
     """
     stage_list = "\n".join(
-        f"{i+1}. **{stage['name']}**: {stage['description']}"
-        for i, stage in enumerate(stages)
+        f"{i + 1}. **{stage['name']}**: {stage['description']}" for i, stage in enumerate(stages)
     )
 
     thresholds = "\n".join(
-        f"- {key.replace('_', ' ').title()}: {value}"
-        for key, value in analysis_config.items()
+        f"- {key.replace('_', ' ').title()}: {value}" for key, value in analysis_config.items()
     )
 
     diff_summary = f"""
-Files Changed: {pr_data['files_changed']}
-Lines Added: {pr_data['lines_added']}
-Lines Deleted: {pr_data['lines_deleted']}
+Files Changed: {pr_data["files_changed"]}
+Lines Added: {pr_data["lines_added"]}
+Lines Deleted: {pr_data["lines_deleted"]}
 """
 
     prompt = f"""Conduct a comprehensive code review of the following Pull Request.
@@ -302,9 +300,7 @@ async def main():
         config = load_yaml_config(config_path)
 
         # Validate configuration
-        validate_config(
-            config, ["architecture", "stages", "pr_source", "output"]
-        )
+        validate_config(config, ["architecture", "stages", "pr_source", "output"])
 
         # Setup logging
         log_config = config.get("logging", {})
@@ -330,18 +326,18 @@ async def main():
             filename="pr_review_report",
         )
 
-        print(f"\n✅ Review complete!")
+        print("\n✅ Review complete!")
         print(f"📊 Report saved to: {output_path}")
 
         # Print summary
-        print(f"\n📈 Summary:")
+        print("\n📈 Summary:")
         print(f"  - Overall Status: {results['overall_status']}")
         print(f"  - Files Changed: {results['metadata']['files_changed']}")
         print(f"  - Stages Completed: {results['metadata']['total_stages']}")
         if results["metadata"]["session_dir"]:
             print(f"  - Session logs: {results['metadata']['session_dir']}")
 
-        print(f"\n💡 Top Recommendations:")
+        print("\n💡 Top Recommendations:")
         for i, rec in enumerate(results["recommendations"][:3], 1):
             print(f"  {i}. {rec}")
 

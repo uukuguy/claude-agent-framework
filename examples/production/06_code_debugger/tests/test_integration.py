@@ -271,9 +271,7 @@ class TestConfigValidation:
         config = {"architecture": "reflexion"}  # Missing required fields
 
         with pytest.raises((ConfigurationError, ValueError)):
-            await run_code_debugger(
-                config, "Test bug", {"error_message": "Test error"}
-            )
+            await run_code_debugger(config, "Test bug", {"error_message": "Test error"})
 
     async def test_invalid_architecture(self):
         """Test error for wrong architecture type."""
@@ -288,9 +286,7 @@ class TestConfigValidation:
         }
 
         with pytest.raises((ConfigurationError, ValueError)):
-            await run_code_debugger(
-                config, "Test bug", {"error_message": "Test error"}
-            )
+            await run_code_debugger(config, "Test bug", {"error_message": "Test error"})
 
 
 @pytest.mark.asyncio

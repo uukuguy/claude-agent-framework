@@ -11,7 +11,6 @@ import argparse
 import asyncio
 import json
 import logging
-import sys
 import webbrowser
 from pathlib import Path
 
@@ -23,16 +22,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Import architectures to trigger registration
+import claude_agent_framework.architectures  # noqa: F401
 from claude_agent_framework.config import validate_api_key
 from claude_agent_framework.core.registry import (
     get_architecture,
     get_architecture_info,
-    list_architectures,
 )
 from claude_agent_framework.core.session import AgentSession
-
-# Import architectures to trigger registration
-import claude_agent_framework.architectures  # noqa: F401
 
 
 def print_architectures() -> None:

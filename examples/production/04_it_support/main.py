@@ -11,13 +11,11 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 # Add parent directories to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from claude_agent_framework import init
 from common import (
     ConfigurationError,
     ExecutionError,
@@ -26,6 +24,8 @@ from common import (
     setup_logging,
     validate_config,
 )
+
+from claude_agent_framework import init
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +62,9 @@ async def run_it_support(config: dict, issue_title: str, issue_description: str)
         logger.warning("No specialists matched. Using fallback.")
         selected_specialists = [_get_fallback_specialist(specialists_config)]
 
-    logger.info(f"Routed to {len(selected_specialists)} specialist(s): {[s['name'] for s in selected_specialists]}")
+    logger.info(
+        f"Routed to {len(selected_specialists)} specialist(s): {[s['name'] for s in selected_specialists]}"
+    )
 
     # Build specialist pool prompt
     prompt = _build_specialist_pool_prompt(
@@ -94,7 +96,12 @@ async def run_it_support(config: dict, issue_title: str, issue_description: str)
     result = {
         "title": f"IT Support Resolution: {issue_title}",
         "summary": _generate_summary(urgency, selected_specialists, consolidated_solution),
-        "issue": {"title": issue_title, "description": issue_description, "urgency": urgency, "sla_hours": sla_hours},
+        "issue": {
+            "title": issue_title,
+            "description": issue_description,
+            "urgency": urgency,
+            "sla_hours": sla_hours,
+        },
         "routing": {
             "specialists": [s["name"] for s in selected_specialists],
             "routing_strategy": routing_config.get("strategy", "keyword_match"),
@@ -109,7 +116,7 @@ async def run_it_support(config: dict, issue_title: str, issue_description: str)
         },
     }
 
-    logger.info(f"✅ Support resolution complete!")
+    logger.info("✅ Support resolution complete!")
     logger.info(f"Specialists consulted: {len(selected_specialists)}")
 
     return result
@@ -321,9 +328,7 @@ Begin the specialist analysis now.
     return prompt
 
 
-def _parse_specialist_responses(
-    results: list[str], specialists: list[dict]
-) -> list[dict]:
+def _parse_specialist_responses(results: list[str], specialists: list[dict]) -> list[dict]:
     """Parse specialist responses from results.
 
     Args:
@@ -412,9 +417,7 @@ def _consolidate_solutions(specialist_responses: list[dict], results: list[str])
     return "Consolidated solution not generated. Please review individual specialist responses."
 
 
-def _generate_summary(
-    urgency: str, specialists: list[dict], consolidated_solution: str
-) -> str:
+def _generate_summary(urgency: str, specialists: list[dict], consolidated_solution: str) -> str:
     """Generate summary of support resolution.
 
     Args:
@@ -497,7 +500,7 @@ def main():
                 logger.info(f"Using example issue #{args.use_example}: {issue_title}")
             else:
                 raise ConfigurationError(
-                    f"Example index {args.use_example} out of range (0-{len(example_issues)-1})"
+                    f"Example index {args.use_example} out of range (0-{len(example_issues) - 1})"
                 )
         elif args.title and args.description:
             issue_title = args.title
@@ -530,7 +533,7 @@ def main():
 
         output_path = saver.save(result, format=output_format, filename=output_file)
 
-        print(f"\n✅ IT support resolution complete!")
+        print("\n✅ IT support resolution complete!")
         print(f"📄 Output saved to: {output_path}")
         print(f"🔧 Specialists consulted: {result['metadata']['num_specialists']}")
         print(f"⚡ Urgency: {result['metadata']['urgency'].upper()}")

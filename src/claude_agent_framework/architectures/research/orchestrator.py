@@ -10,8 +10,9 @@ Implements master-worker coordination pattern:
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, AsyncIterator
+from typing import TYPE_CHECKING, Any
 
 from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient, HookMatcher
 
@@ -106,13 +107,21 @@ class ResearchArchitecture(BaseArchitecture):
         base_prompt = super().get_lead_prompt()
 
         # Add research depth context
-        depth_context = f"\n\n# Research Depth\nCurrently set to {self.research_config.research_depth} mode."
+        depth_context = (
+            f"\n\n# Research Depth\nCurrently set to {self.research_config.research_depth} mode."
+        )
         if self.research_config.research_depth == "shallow":
-            depth_context += "\n- Quick overview, 2-3 key data points\n- Dispatch 2 researchers in parallel"
+            depth_context += (
+                "\n- Quick overview, 2-3 key data points\n- Dispatch 2 researchers in parallel"
+            )
         elif self.research_config.research_depth == "deep":
-            depth_context += "\n- Deep analysis, 15+ data points\n- Dispatch 4 researchers in parallel"
+            depth_context += (
+                "\n- Deep analysis, 15+ data points\n- Dispatch 4 researchers in parallel"
+            )
         else:
-            depth_context += "\n- Standard depth, 5-10 data points\n- Dispatch 3 researchers in parallel"
+            depth_context += (
+                "\n- Standard depth, 5-10 data points\n- Dispatch 3 researchers in parallel"
+            )
 
         return base_prompt + depth_context
 

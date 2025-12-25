@@ -52,7 +52,9 @@ async def run_competitive_intelligence(config: dict) -> dict:
         # Build analysis prompt
         prompt = _build_analysis_prompt(competitors, analysis_dimensions)
 
-        logger.info(f"Starting competitive intelligence analysis for {len(competitors)} competitors")
+        logger.info(
+            f"Starting competitive intelligence analysis for {len(competitors)} competitors"
+        )
 
         # Initialize session with Research architecture
         session = init(
@@ -169,11 +171,11 @@ async def main():
             filename="competitive_intelligence_report",
         )
 
-        print(f"\n✅ Analysis complete!")
+        print("\n✅ Analysis complete!")
         print(f"📊 Report saved to: {output_path}")
 
         # Print summary
-        print(f"\n📈 Summary:")
+        print("\n📈 Summary:")
         print(f"  - Competitors analyzed: {len(results['competitors'])}")
         print(f"  - Analysis dimensions: {len(results['dimensions'])}")
         if results["metadata"]["session_dir"]:

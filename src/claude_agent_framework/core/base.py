@@ -7,9 +7,10 @@ Provides abstract base class that all architecture implementations must inherit.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, AsyncIterator, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from claude_agent_framework.plugins.base import BasePlugin
@@ -246,9 +247,7 @@ class BaseArchitecture(ABC):
             # Legacy style plugin
             self._plugins.append(plugin)
         else:
-            raise TypeError(
-                f"Plugin must be BasePlugin or ArchitecturePlugin, got {type(plugin)}"
-            )
+            raise TypeError(f"Plugin must be BasePlugin or ArchitecturePlugin, got {type(plugin)}")
 
     def remove_plugin(self, plugin: ArchitecturePlugin | BasePlugin) -> None:
         """

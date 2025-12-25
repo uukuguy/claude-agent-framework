@@ -14,14 +14,14 @@ import sys
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
 
 # Add parent directories to path for common utilities
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from claude_agent_framework import init
 from common import ResultSaver, load_yaml_config, validate_config
+
+from claude_agent_framework import init
 
 
 class ConfigurationError(Exception):
@@ -156,9 +156,8 @@ async def run_code_debugger(
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "iterations": len(debugging_timeline),
             "max_iterations": debugging_config.get("max_iterations", 5),
-            "success": _confidence_to_score(root_cause.get("confidence", "Unknown")) >= debugging_config.get(
-                "success_threshold", 0.9
-            ),
+            "success": _confidence_to_score(root_cause.get("confidence", "Unknown"))
+            >= debugging_config.get("success_threshold", 0.9),
             "config": {
                 "strategies_used": list(strategies.keys()),
                 "models": models,
@@ -246,28 +245,28 @@ def _build_reflexion_prompt(
 **Actual Behavior**: {actual_behavior if actual_behavior else "Not specified"}
 
 **Reproduction Steps**:
-{chr(10).join(f"{i+1}. {step}" for i, step in enumerate(reproduction_steps)) if reproduction_steps else "Not provided"}
+{chr(10).join(f"{i + 1}. {step}" for i, step in enumerate(reproduction_steps)) if reproduction_steps else "Not provided"}
 
 ## Reflexion Loop
 
 You are using the Reflexion architecture to debug this issue through an execute-reflect-improve loop.
 
-Maximum iterations: {debugging_config.get('max_iterations', 5)}
-Success threshold: {debugging_config.get('success_threshold', 0.9)}
+Maximum iterations: {debugging_config.get("max_iterations", 5)}
+Success threshold: {debugging_config.get("success_threshold", 0.9)}
 
 ### Roles
 
-**Executor ({reflexion_config['executor']['name']})**:
-{reflexion_config['executor']['role']}
-Available tools: {', '.join(reflexion_config['executor']['tools'])}
+**Executor ({reflexion_config["executor"]["name"]})**:
+{reflexion_config["executor"]["role"]}
+Available tools: {", ".join(reflexion_config["executor"]["tools"])}
 
-**Reflector ({reflexion_config['reflector']['name']})**:
-{reflexion_config['reflector']['role']}
+**Reflector ({reflexion_config["reflector"]["name"]})**:
+{reflexion_config["reflector"]["role"]}
 Focus areas:
-{chr(10).join(f"- {area}" for area in reflexion_config['reflector']['focus_areas'])}
+{chr(10).join(f"- {area}" for area in reflexion_config["reflector"]["focus_areas"])}
 
-**Improver ({reflexion_config['improver']['name']})**:
-{reflexion_config['improver']['role']}
+**Improver ({reflexion_config["improver"]["name"]})**:
+{reflexion_config["improver"]["role"]}
 
 ## Available Debugging Strategies
 
@@ -279,9 +278,9 @@ Focus areas:
 
 ## Advanced Options
 
-{f"- **Static Analysis Enabled**: Run linters and type checkers" if advanced.get('enable_static_analysis') else ""}
-{f"- **LLM Debugging Enabled**: Use LLM to analyze code patterns" if advanced.get('enable_llm_debugging') else ""}
-{f"- **Verbose Logging**: Detailed debugging logs" if advanced.get('verbose_logging') else ""}
+{"- **Static Analysis Enabled**: Run linters and type checkers" if advanced.get("enable_static_analysis") else ""}
+{"- **LLM Debugging Enabled**: Use LLM to analyze code patterns" if advanced.get("enable_llm_debugging") else ""}
+{"- **Verbose Logging**: Detailed debugging logs" if advanced.get("verbose_logging") else ""}
 
 ## Output Format
 
@@ -294,7 +293,7 @@ Structure your debugging as an iterative reflexion loop:
 Strategy: error_trace_analysis
 Actions taken:
 - Analyzed error message and stack trace
-- Identified error location: {file_path if file_path else '[file]'}:[line]
+- Identified error location: {file_path if file_path else "[file]"}:[line]
 - Reviewed surrounding code
 
 Evidence collected:
@@ -342,7 +341,7 @@ Rationale: [Why this strategy now]
 
 ### Final Analysis
 
-After {debugging_config.get('max_iterations', 5)} iterations or upon finding root cause:
+After {debugging_config.get("max_iterations", 5)} iterations or upon finding root cause:
 
 **Root Cause Identified**
 
@@ -362,7 +361,7 @@ Evidence:
 **Proposed Fix**
 
 ```python
-# File: {file_path if file_path else '[file_path]'}
+# File: {file_path if file_path else "[file_path]"}
 
 # Before (problematic code):
 [original code]
@@ -420,9 +419,7 @@ Begin debugging now. Use the reflexion loop to systematically find the root caus
     return prompt
 
 
-def _categorize_bug(
-    bug_description: str, context: dict, bug_categories: dict
-) -> str:
+def _categorize_bug(bug_description: str, context: dict, bug_categories: dict) -> str:
     """Categorize bug based on description and context.
 
     Args:
@@ -547,9 +544,7 @@ def _extract_root_cause(results: list[str]) -> dict:
             if desc_end == -1:
                 desc_end = len(cause_section)
             description = cause_section[desc_start:desc_end]
-            root_cause["description"] = (
-                description.replace("Description:", "").strip()
-            )
+            root_cause["description"] = description.replace("Description:", "").strip()
 
         # Extract confidence
         if "Confidence:" in cause_section:
@@ -640,9 +635,7 @@ def _extract_proposed_fix(results: list[str]) -> dict:
             if expl_end == -1:
                 expl_end = len(fix_section)
             explanation = fix_section[expl_start:expl_end]
-            proposed_fix["explanation"] = (
-                explanation.replace("# Explanation:", "").strip()
-            )
+            proposed_fix["explanation"] = explanation.replace("# Explanation:", "").strip()
 
     return proposed_fix
 

@@ -155,9 +155,7 @@ class SubagentTracker:
         logger.info(f"Spawned subagent: {subagent_id}")
         return subagent_id
 
-    def mark_subagent_complete(
-        self, parent_tool_use_id: str, status: str = "completed"
-    ) -> None:
+    def mark_subagent_complete(self, parent_tool_use_id: str, status: str = "completed") -> None:
         """
         标记子智能体完成
 
@@ -292,9 +290,7 @@ class SubagentTracker:
             )
 
             if error:
-                logger.warning(
-                    f"[{record.subagent_type}] Tool {record.tool_name} error: {error}"
-                )
+                logger.warning(f"[{record.subagent_type}] Tool {record.tool_name} error: {error}")
 
         return {"continue_": True}
 

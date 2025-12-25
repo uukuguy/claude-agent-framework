@@ -2,9 +2,6 @@
 
 import json
 import time
-from pathlib import Path
-
-import pytest
 
 from claude_agent_framework.metrics.collector import (
     AgentMetrics,
@@ -127,17 +124,13 @@ class TestSessionMetrics:
         metrics = SessionMetrics(session_id="test", architecture_name="research")
 
         # Add successful tools
-        metrics.tools.append(
-            ToolMetrics(tool_name="Read", called_at=time.time(), status="success")
-        )
+        metrics.tools.append(ToolMetrics(tool_name="Read", called_at=time.time(), status="success"))
         metrics.tools.append(
             ToolMetrics(tool_name="Write", called_at=time.time(), status="success")
         )
 
         # Add failed tool
-        metrics.tools.append(
-            ToolMetrics(tool_name="Bash", called_at=time.time(), status="failed")
-        )
+        metrics.tools.append(ToolMetrics(tool_name="Bash", called_at=time.time(), status="failed"))
 
         assert metrics.tool_call_count == 3
         assert metrics.successful_tool_calls == 2
@@ -189,9 +182,7 @@ class TestMetricsCollector:
 
     def test_collector_initialization(self):
         """Test MetricsCollector initialization."""
-        collector = MetricsCollector(
-            session_id="test-123", architecture_name="research"
-        )
+        collector = MetricsCollector(session_id="test-123", architecture_name="research")
         assert collector.metrics.session_id == "test-123"
         assert collector.metrics.architecture_name == "research"
 

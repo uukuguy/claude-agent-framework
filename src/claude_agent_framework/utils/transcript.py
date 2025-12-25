@@ -58,10 +58,10 @@ class TranscriptWriter:
 
     def _write_header(self) -> None:
         """写入会话头信息"""
-        header = f"""{'='*60}
+        header = f"""{"=" * 60}
 研究智能体会话转录
 开始时间: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-{'='*60}
+{"=" * 60}
 
 """
         self._file.write(header)
@@ -106,7 +106,7 @@ class TranscriptWriter:
         Args:
             title: 节标题
         """
-        section_text = f"\n{'─'*40}\n{title}\n{'─'*40}\n"
+        section_text = f"\n{'─' * 40}\n{title}\n{'─' * 40}\n"
         self.write(section_text)
 
     def user_input(self, text: str) -> None:
@@ -172,9 +172,9 @@ class TranscriptWriter:
         # 写入会话尾
         footer = f"""
 
-{'='*60}
+{"=" * 60}
 会话结束: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-{'='*60}
+{"=" * 60}
 """
         self._file.write(footer)
         self._file.close()

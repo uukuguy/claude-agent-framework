@@ -36,7 +36,7 @@ async def with_options_example():
     session = init(
         "research",
         model="sonnet",  # Use a more powerful model
-        verbose=True,    # Enable debug logging
+        verbose=True,  # Enable debug logging
     )
 
     # Run session

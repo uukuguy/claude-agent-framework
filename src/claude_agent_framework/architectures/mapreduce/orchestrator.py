@@ -9,8 +9,9 @@ Implements parallel map with aggregation:
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, AsyncIterator
+from typing import TYPE_CHECKING, Any
 
 from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient, HookMatcher
 
@@ -92,7 +93,9 @@ class MapReduceArchitecture(BaseArchitecture):
         """Get lead agent prompt for mapreduce coordination."""
         base_prompt = super().get_lead_prompt()
 
-        return base_prompt + f"""
+        return (
+            base_prompt
+            + f"""
 # MapReduce Coordinator
 
 You are responsible for coordinating large-scale parallel processing tasks, splitting tasks for parallel processing then aggregating results.
@@ -173,6 +176,7 @@ Task(reducer, all_mapper_results)
 [Final result or output file location]
 ```
 """
+        )
 
     async def execute(
         self,
@@ -210,12 +214,8 @@ Task(reducer, all_mapper_results)
         hooks: dict[str, list] = {}
 
         if tracker:
-            hooks["PreToolUse"] = [
-                HookMatcher(matcher=None, hooks=[tracker.pre_tool_use_hook])
-            ]
-            hooks["PostToolUse"] = [
-                HookMatcher(matcher=None, hooks=[tracker.post_tool_use_hook])
-            ]
+            hooks["PreToolUse"] = [HookMatcher(matcher=None, hooks=[tracker.pre_tool_use_hook])]
+            hooks["PostToolUse"] = [HookMatcher(matcher=None, hooks=[tracker.post_tool_use_hook])]
 
         return hooks
 

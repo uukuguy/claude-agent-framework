@@ -1,7 +1,6 @@
 """Tests for advanced configuration system."""
 
 import os
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -276,9 +275,7 @@ class TestConfigValidator:
 
         config = FrameworkConfigSchema()
 
-        errors = ConfigValidator.validate_config(
-            config, prompts_dir=prompts_dir, check_files=True
-        )
+        errors = ConfigValidator.validate_config(config, prompts_dir=prompts_dir, check_files=True)
 
         assert len(errors) == 0
 

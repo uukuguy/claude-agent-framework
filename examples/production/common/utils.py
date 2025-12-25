@@ -150,9 +150,7 @@ class ResultSaver:
         elif format == "pdf":
             return self._save_pdf(result, filename)
         else:
-            raise ValueError(
-                f"Unsupported format: {format}. Supported: json, markdown, pdf"
-            )
+            raise ValueError(f"Unsupported format: {format}. Supported: json, markdown, pdf")
 
     def _save_json(self, result: dict, filename: str) -> Path:
         """Save result as JSON file."""

@@ -10,9 +10,10 @@ Implements pro-con deliberation:
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, AsyncIterator
+from typing import TYPE_CHECKING, Any
 
 from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient, HookMatcher
 
@@ -118,7 +119,9 @@ class DebateArchitecture(BaseArchitecture):
         """Get lead agent prompt for debate coordination."""
         base_prompt = super().get_lead_prompt()
 
-        return base_prompt + f"""
+        return (
+            base_prompt
+            + f"""
 # Debate Coordinator
 
 You are responsible for coordinating the debate between proponent and opponent, then requesting the judge to render a verdict.
@@ -164,6 +167,7 @@ After each round, report:
 
 Finally output the judge's verdict.
 """
+        )
 
     async def execute(
         self,
@@ -201,12 +205,8 @@ Finally output the judge's verdict.
         hooks: dict[str, list] = {}
 
         if tracker:
-            hooks["PreToolUse"] = [
-                HookMatcher(matcher=None, hooks=[tracker.pre_tool_use_hook])
-            ]
-            hooks["PostToolUse"] = [
-                HookMatcher(matcher=None, hooks=[tracker.post_tool_use_hook])
-            ]
+            hooks["PreToolUse"] = [HookMatcher(matcher=None, hooks=[tracker.pre_tool_use_hook])]
+            hooks["PostToolUse"] = [HookMatcher(matcher=None, hooks=[tracker.post_tool_use_hook])]
 
         return hooks
 

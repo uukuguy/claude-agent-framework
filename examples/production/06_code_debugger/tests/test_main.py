@@ -88,12 +88,8 @@ class TestBugCategorization:
         from main import _categorize_bug
 
         bug_categories = {
-            "runtime_error": {
-                "patterns": ["AttributeError", "TypeError", "ValueError"]
-            },
-            "logic_error": {
-                "patterns": ["Incorrect output", "Wrong calculation"]
-            },
+            "runtime_error": {"patterns": ["AttributeError", "TypeError", "ValueError"]},
+            "logic_error": {"patterns": ["Incorrect output", "Wrong calculation"]},
         }
 
         # Test AttributeError
@@ -110,12 +106,8 @@ class TestBugCategorization:
         from main import _categorize_bug
 
         bug_categories = {
-            "runtime_error": {
-                "patterns": ["AttributeError", "TypeError"]
-            },
-            "logic_error": {
-                "patterns": ["Incorrect output", "Wrong calculation"]
-            },
+            "runtime_error": {"patterns": ["AttributeError", "TypeError"]},
+            "logic_error": {"patterns": ["Incorrect output", "Wrong calculation"]},
         }
 
         category = _categorize_bug(
@@ -456,7 +448,6 @@ To prevent similar bugs:
 
             assert result["bug"]["description"] == bug_description
             assert "AttributeError" in result["title"]
-
 
     async def test_missing_config_fields(self):
         """Test error handling for missing required config."""

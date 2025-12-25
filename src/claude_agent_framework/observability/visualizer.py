@@ -281,7 +281,9 @@ class SessionVisualizer:
         else:
             events_data = [event.to_dict() for event in self._events]
             with events_file.open("w") as f:
-                json.dump({"events": events_data, "summary": self._calculate_statistics()}, f, indent=2)
+                json.dump(
+                    {"events": events_data, "summary": self._calculate_statistics()}, f, indent=2
+                )
         files["events"] = events_file
 
         return files

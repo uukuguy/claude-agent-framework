@@ -13,14 +13,14 @@ import sys
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
 
 # Add parent directories to path for common utilities
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from claude_agent_framework import init
 from common import ResultSaver, load_yaml_config, validate_config
+
+from claude_agent_framework import init
 
 
 class ConfigurationError(Exception):
@@ -226,42 +226,42 @@ def _build_mapreduce_prompt(
 **Codebase Path**: {codebase_path}
 
 **Analysis Scope**:
-- Include extensions: {', '.join(include_extensions) if include_extensions else 'All'}
-- Exclude paths: {', '.join(exclude_paths) if exclude_paths else 'None'}
-- Minimum confidence: {analysis_config.get('min_confidence', 0.7)}
+- Include extensions: {", ".join(include_extensions) if include_extensions else "All"}
+- Exclude paths: {", ".join(exclude_paths) if exclude_paths else "None"}
+- Minimum confidence: {analysis_config.get("min_confidence", 0.7)}
 
 ## MapReduce Workflow
 
 You are using the MapReduce architecture to analyze a large codebase in parallel.
 
-Maximum parallel mappers: {analysis_config.get('max_parallel_mappers', 10)}
-Target chunk size: {analysis_config.get('chunk_size', 50)} files per chunk
-Aggregation strategy: {analysis_config.get('aggregation_strategy', 'weighted')}
+Maximum parallel mappers: {analysis_config.get("max_parallel_mappers", 10)}
+Target chunk size: {analysis_config.get("chunk_size", 50)} files per chunk
+Aggregation strategy: {analysis_config.get("aggregation_strategy", "weighted")}
 
 ### Roles
 
-**Coordinator ({mapreduce_config['coordinator']['name']})**:
-{mapreduce_config['coordinator']['role']}
+**Coordinator ({mapreduce_config["coordinator"]["name"]})**:
+{mapreduce_config["coordinator"]["role"]}
 Responsibilities:
-{chr(10).join(f"- {r}" for r in mapreduce_config['coordinator']['responsibilities'])}
+{chr(10).join(f"- {r}" for r in mapreduce_config["coordinator"]["responsibilities"])}
 
-**Mapper ({mapreduce_config['mapper']['name']})**:
-{mapreduce_config['mapper']['role']}
-Available tools: {', '.join(mapreduce_config['mapper']['tools'])}
-Analysis depth: {mapreduce_config['mapper'].get('analysis_depth', 'standard')}
+**Mapper ({mapreduce_config["mapper"]["name"]})**:
+{mapreduce_config["mapper"]["role"]}
+Available tools: {", ".join(mapreduce_config["mapper"]["tools"])}
+Analysis depth: {mapreduce_config["mapper"].get("analysis_depth", "standard")}
 
-**Reducer ({mapreduce_config['reducer']['name']})**:
-{mapreduce_config['reducer']['role']}
+**Reducer ({mapreduce_config["reducer"]["name"]})**:
+{mapreduce_config["reducer"]["role"]}
 Capabilities:
-{chr(10).join(f"- {c}" for c in mapreduce_config['reducer']['capabilities'])}
+{chr(10).join(f"- {c}" for c in mapreduce_config["reducer"]["capabilities"])}
 
 ## Chunking Strategy
 
 **Selected Strategy**: {chunking_strategy}
-{strategy_info.get('description', '')}
+{strategy_info.get("description", "")}
 
 **Benefits**:
-{chr(10).join(f"- {b}" for b in strategy_info.get('benefits', [])) if strategy_info.get('benefits') else '- Efficient code analysis'}
+{chr(10).join(f"- {b}" for b in strategy_info.get("benefits", [])) if strategy_info.get("benefits") else "- Efficient code analysis"}
 
 ## Analysis Types
 
@@ -270,11 +270,11 @@ Capabilities:
 ## Deduplication and Prioritization
 
 **Deduplication**:
-- Similarity threshold: {aggregation_rules.get('deduplication', {}).get('similarity_threshold', 0.85)}
-- Merge strategy: {aggregation_rules.get('deduplication', {}).get('merge_strategy', 'highest_severity')}
+- Similarity threshold: {aggregation_rules.get("deduplication", {}).get("similarity_threshold", 0.85)}
+- Merge strategy: {aggregation_rules.get("deduplication", {}).get("merge_strategy", "highest_severity")}
 
 **Prioritization Criteria**:
-{chr(10).join(f"- {k}: {v*100}%" for k, v in aggregation_rules.get('prioritization', {}).get('criteria', {}).items())}
+{chr(10).join(f"- {k}: {v * 100}%" for k, v in aggregation_rules.get("prioritization", {}).get("criteria", {}).items())}
 
 ## Expected Output Format
 
@@ -412,7 +412,9 @@ def _extract_issues(results: list[str]) -> list[dict]:
     # Format 1: - [Severity] [Type] in [file]:[line] - [Description]
     import re
 
-    issue_pattern1 = r"-\s*\[(critical|high|medium|low)\]\s*\[(\w+)\]\s*in\s+([^:]+):(\d+)\s*-\s*(.+?)(?:\n|$)"
+    issue_pattern1 = (
+        r"-\s*\[(critical|high|medium|low)\]\s*\[(\w+)\]\s*in\s+([^:]+):(\d+)\s*-\s*(.+?)(?:\n|$)"
+    )
     matches = re.finditer(issue_pattern1, full_text, re.IGNORECASE | re.MULTILINE)
 
     for match in matches:
@@ -550,7 +552,11 @@ def _extract_module_health(results: list[str]) -> list[dict]:
                     "name": module_name,
                     "score": score,
                     "status": (
-                        "healthy" if score >= 80 else "needs_attention" if score >= 60 else "critical"
+                        "healthy"
+                        if score >= 80
+                        else "needs_attention"
+                        if score >= 60
+                        else "critical"
                     ),
                 }
             )
@@ -611,7 +617,9 @@ def _extract_recommendations(results: list[str]) -> list[dict]:
         import re
 
         # Format: N. [Priority] [Action]
-        rec_pattern = r"\d+\.\s*(?:\[Priority \d+\]\s*)?(.+?)(?:\n\s+Reason:|Effort:|Impact:|\d+\.|$)"
+        rec_pattern = (
+            r"\d+\.\s*(?:\[Priority \d+\]\s*)?(.+?)(?:\n\s+Reason:|Effort:|Impact:|\d+\.|$)"
+        )
         matches = re.finditer(rec_pattern, full_text, re.DOTALL)
 
         for match in matches:
@@ -697,7 +705,13 @@ def _generate_summary(issue_summary: dict, overall_score: int, chunks: list) -> 
     critical = issue_summary.get("critical", 0)
     high = issue_summary.get("high", 0)
 
-    status = "healthy" if overall_score >= 80 else "needs attention" if overall_score >= 60 else "critical"
+    status = (
+        "healthy"
+        if overall_score >= 80
+        else "needs attention"
+        if overall_score >= 60
+        else "critical"
+    )
 
     summary = (
         f"Analyzed {len(chunks)} chunks with overall health score of {overall_score}/100 ({status}). "
@@ -728,9 +742,9 @@ async def main():
 
     result = await run_codebase_analysis(config, codebase_path, options)
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"ANALYSIS: {result['title']}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"\n📊 Summary: {result['summary']}")
     print(f"\n🎯 Overall Score: {result['scores']['overall']}/100")
     print(f"\n⚠️  Issues Found: {result['issues']['total']}")

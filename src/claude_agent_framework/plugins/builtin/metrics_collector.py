@@ -81,9 +81,7 @@ class MetricsCollectorPlugin(BasePlugin):
 
         return agent_prompt  # Return unmodified prompt
 
-    async def on_agent_complete(
-        self, agent_type: str, result: Any, context: PluginContext
-    ) -> None:
+    async def on_agent_complete(self, agent_type: str, result: Any, context: PluginContext) -> None:
         """Record agent completion."""
         if self._collector:
             # Retrieve context ID
@@ -111,11 +109,9 @@ class MetricsCollectorPlugin(BasePlugin):
             self._tool_tracking[context_id] = collector_id
 
             # Store in shared state for retrieval
-            context.shared_state[f"metrics_tool_current"] = context_id
+            context.shared_state["metrics_tool_current"] = context_id
 
-    async def on_tool_result(
-        self, tool_name: str, result: Any, context: PluginContext
-    ) -> None:
+    async def on_tool_result(self, tool_name: str, result: Any, context: PluginContext) -> None:
         """Record tool call completion."""
         if self._collector:
             # Retrieve context ID

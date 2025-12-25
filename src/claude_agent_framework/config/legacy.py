@@ -163,7 +163,7 @@ class FrameworkConfig:
             (self.files_dir / subdir).mkdir(parents=True, exist_ok=True)
 
     @classmethod
-    def from_env(cls) -> "FrameworkConfig":
+    def from_env(cls) -> FrameworkConfig:
         """Create configuration from environment variables."""
         return cls(
             lead_agent_model=os.getenv("LEAD_MODEL", "haiku"),

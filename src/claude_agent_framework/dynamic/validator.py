@@ -89,9 +89,7 @@ class AgentConfigValidator:
             raise AgentConfigError("Agent description cannot be empty")
 
         if not isinstance(description, str):
-            raise AgentConfigError(
-                f"Agent description must be string, got {type(description)}"
-            )
+            raise AgentConfigError(f"Agent description must be string, got {type(description)}")
 
         if len(description) < 10:
             raise AgentConfigError(
@@ -118,8 +116,7 @@ class AgentConfigValidator:
         invalid_tools = [t for t in tools if t not in ALLOWED_TOOLS]
         if invalid_tools:
             raise AgentConfigError(
-                f"Invalid tools: {invalid_tools}. "
-                f"Allowed tools: {sorted(ALLOWED_TOOLS)}"
+                f"Invalid tools: {invalid_tools}. Allowed tools: {sorted(ALLOWED_TOOLS)}"
             )
 
     @staticmethod
@@ -140,9 +137,7 @@ class AgentConfigValidator:
             raise AgentConfigError(f"Agent prompt must be string, got {type(prompt)}")
 
         if len(prompt) < 20:
-            raise AgentConfigError(
-                f"Agent prompt too short (min 20 chars): {len(prompt)}"
-            )
+            raise AgentConfigError(f"Agent prompt too short (min 20 chars): {len(prompt)}")
 
     @staticmethod
     def validate_model(model: str) -> None:
