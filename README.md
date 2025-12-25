@@ -119,6 +119,46 @@ asyncio.run(main())
 | **reflexion** | Complex problem solving | Execute-reflect-improve cycle |
 | **mapreduce** | Large-scale analysis | Parallel map with aggregation |
 
+## Production Examples
+
+The framework includes 7 production-grade examples demonstrating real-world business scenarios:
+
+| Example | Architecture | Business Scenario | Features |
+|---------|--------------|-------------------|----------|
+| **01_competitive_intelligence** | Research | SaaS competitive analysis | Parallel competitor research, multi-channel data collection, SWOT analysis, PDF reports |
+| **02_pr_code_review** | Pipeline | Automated PR review | Architecture review, code quality check, security scan, performance analysis, test coverage |
+| **03_marketing_content** | Critic-Actor | Marketing copy optimization | Draft generation, multi-dimensional evaluation, A/B test variants, brand guideline integration |
+| **04_it_support** | Specialist Pool | IT support routing | Intelligent classification, expert routing, parallel collaboration, knowledge base integration |
+| **05_tech_decision** | Debate | Technical decision support | Pro-con debate, multi-round deliberation, expert judgment, risk analysis |
+| **06_code_debugger** | Reflexion | Adaptive debugging | Strategy execution, result reflection, dynamic adjustment, root cause identification |
+| **07_codebase_analysis** | MapReduce | Large codebase analysis | Intelligent partitioning, parallel analysis, issue aggregation, prioritized reports |
+
+Each example includes:
+- ✅ Complete runnable code with error handling
+- ✅ Configuration files and custom components
+- ✅ Unit tests, integration tests, and end-to-end tests
+- ✅ Comprehensive documentation (English + Chinese)
+- ✅ Usage guides and customization instructions
+
+See [Production Examples Design Document](docs/PRODUCTION_EXAMPLES_DESIGN.md) for detailed implementation specifications.
+
+### Running Examples
+
+```bash
+# Navigate to example directory
+cd examples/production/01_competitive_intelligence
+
+# Install dependencies
+pip install -e ".[all]"
+
+# Configure
+cp config.example.yaml config.yaml
+# Edit config.yaml with your settings
+
+# Run
+python main.py
+```
+
 ## Architecture Diagrams
 
 ### Research Architecture

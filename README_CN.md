@@ -96,6 +96,46 @@ Claude Agent Framework 通过**智能体专业化与编排**解决这个问题�
 | **reflexion** | 复杂问题求解、调试 | 执行-反思-改进循环 |
 | **mapreduce** | 大规模分析、批量处理 | 分治并行 + 聚合 |
 
+## 生产级示例
+
+框架包含 7 个生产级示例，展示真实业务场景的应用：
+
+| 示例 | 架构 | 业务场景 | 功能特性 |
+|------|------|----------|----------|
+| **01_competitive_intelligence** | Research | SaaS 竞品分析 | 并行竞品调研、多渠道数据收集、SWOT 分析、PDF 报告 |
+| **02_pr_code_review** | Pipeline | 自动化 PR 审查 | 架构评审、代码质量检查、安全扫描、性能分析、测试覆盖率 |
+| **03_marketing_content** | Critic-Actor | 营销文案优化 | 初稿生成、多维度评估、A/B 测试变体、品牌指南集成 |
+| **04_it_support** | Specialist Pool | IT 支持路由 | 智能分类、专家路由、并行协作、知识库集成 |
+| **05_tech_decision** | Debate | 技术决策支持 | 正反辩论、多轮深度讨论、专家裁决、风险分析 |
+| **06_code_debugger** | Reflexion | 自适应调试 | 策略执行、结果反思、动态调整、根因定位 |
+| **07_codebase_analysis** | MapReduce | 大规模代码库分析 | 智能分片、并行分析、问题聚合、优先级报告 |
+
+每个示例包含：
+- ✅ 完整可运行代码，包含错误处理
+- ✅ 配置文件和自定义组件
+- ✅ 单元测试、集成测试、端到端测试
+- ✅ 完整文档（中英双语）
+- ✅ 使用指南和定制说明
+
+详细实现规范请参阅 [生产级示例设计文档](docs/PRODUCTION_EXAMPLES_DESIGN_CN.md)。
+
+### 运行示例
+
+```bash
+# 进入示例目录
+cd examples/production/01_competitive_intelligence
+
+# 安装依赖
+pip install -e ".[all]"
+
+# 配置
+cp config.example.yaml config.yaml
+# 编辑 config.yaml 设置参数
+
+# 运行
+python main.py
+```
+
 ## 快速开始
 
 ### 安装
