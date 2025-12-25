@@ -212,17 +212,108 @@ async def test_architecture():
 
 ## Architecture Overview
 
-| Architecture | Pattern | Use Case |
-|--------------|---------|----------|
-| research | Master-worker parallel | Deep research, data gathering |
-| pipeline | Sequential stages | Code review, content creation |
-| critic_actor | Generate-evaluate loop | Quality improvement, optimization |
-| specialist_pool | Expert routing | Technical support, Q&A |
-| debate | Pro-con deliberation | Decision support, risk assessment |
-| reflexion | Execute-reflect-improve | Complex problem solving |
-| mapreduce | Parallel map + reduce | Large-scale analysis |
+| Architecture | Pattern | Use Case | Production Example |
+|--------------|---------|----------|-------------------|
+| research | Master-worker parallel | Deep research, data gathering | 01_competitive_intelligence |
+| pipeline | Sequential stages | Code review, content creation | 02_pr_code_review |
+| critic_actor | Generate-evaluate loop | Quality improvement, optimization | 03_marketing_content |
+| specialist_pool | Expert routing | Technical support, Q&A | 04_it_support |
+| debate | Pro-con deliberation | Decision support, risk assessment | 05_tech_decision |
+| reflexion | Execute-reflect-improve | Complex problem solving | 06_code_debugger |
+| mapreduce | Parallel map + reduce | Large-scale analysis | 07_codebase_analysis |
+
+## Production Implementation Patterns
+
+The framework includes 7 production-grade examples (`examples/production/`) demonstrating real-world business scenarios. Each example showcases proven implementation patterns:
+
+### Common Patterns
+
+1. **Configuration-Driven Design**
+   - All parameters in YAML config files with validation
+   - Environment-specific settings (development, staging, production)
+   - No hardcoded values in source code
+
+2. **Structured Results**
+   - Consistent JSON output schema across all examples
+   - Programmatic access for automation and integration
+   - Multiple output formats (JSON, Markdown, PDF)
+
+3. **Robust Error Handling**
+   - Try/catch blocks at all I/O boundaries
+   - Graceful degradation (partial results better than total failure)
+   - Detailed error messages with context
+   - Resource cleanup in finally blocks
+
+4. **Comprehensive Logging**
+   - Structured JSONL for tool call tracking
+   - Human-readable transcript logs
+   - Separate log levels (DEBUG, INFO, WARNING, ERROR)
+   - Session-based log organization
+
+5. **Production Testing**
+   - Unit tests for core functions
+   - Integration tests for end-to-end workflows
+   - Mock-based testing for external dependencies
+   - 100% test pass requirement before release
+
+### Architecture-Specific Patterns
+
+| Example | Architecture | Key Implementation Patterns |
+|---------|--------------|----------------------------|
+| **Competitive Intelligence** | Research | Parallel worker dispatch, SWOT analysis generation, multi-channel data aggregation |
+| **PR Code Review** | Pipeline | Sequential stage gating, configurable failure strategies, threshold-based quality gates |
+| **Marketing Content** | Critic-Actor | Weighted multi-dimensional scoring, brand voice enforcement, A/B variant generation |
+| **IT Support** | Specialist Pool | Keyword-based routing, urgency categorization, parallel specialist consultation |
+| **Tech Decision** | Debate | Multi-round deliberation, weighted criteria evaluation, evidence-based argumentation |
+| **Code Debugger** | Reflexion | Strategy execution, reflection analysis, adaptive improvement, root cause taxonomy |
+| **Codebase Analysis** | MapReduce | Intelligent chunking strategies, parallel mapping, weighted scoring, issue aggregation |
+
+### When to Use Each Pattern
+
+**Research Architecture** - Use when:
+- Task requires gathering data from multiple independent sources
+- Sources can be queried in parallel
+- Final result needs aggregation from all sources
+- Example: Market research, competitive analysis, literature reviews
+
+**Pipeline Architecture** - Use when:
+- Task has clear sequential stages
+- Each stage depends on previous stage's output
+- Need quality gates between stages
+- Example: Code review, content creation workflows, multi-step approval processes
+
+**Critic-Actor Architecture** - Use when:
+- Output quality needs iterative improvement
+- Can define clear evaluation criteria
+- Have quality threshold to meet
+- Example: Content optimization, code refactoring, design iteration
+
+**Specialist Pool Architecture** - Use when:
+- Requests need routing to domain experts
+- Can define keywords/criteria for routing
+- Multiple specialists may be needed for complex requests
+- Example: Technical support, Q&A systems, diagnostic systems
+
+**Debate Architecture** - Use when:
+- Decision requires examining tradeoffs
+- Want balanced pro/con analysis
+- Need evidence-based evaluation
+- Example: Technology selection, architecture decisions, vendor evaluation
+
+**Reflexion Architecture** - Use when:
+- Problem requires trial-and-error exploration
+- Can learn from failed attempts
+- Strategy needs adapting based on results
+- Example: Debugging, root cause analysis, optimization problems
+
+**MapReduce Architecture** - Use when:
+- Large dataset needs processing (500+ files)
+- Work can be divided into independent chunks
+- Results need aggregation and deduplication
+- Example: Codebase analysis, batch processing, large-scale audits
 
 ## Related Documentation
 
 - README.md / README_CN.md - User documentation (English/Chinese)
 - docs/BEST_PRACTICES.md / docs/BEST_PRACTICES_CN.md - Best practices guide (English/Chinese)
+- examples/production/*/README.md - Individual example documentation

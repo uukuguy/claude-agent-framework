@@ -121,21 +121,197 @@ asyncio.run(main())
 
 ## Production Examples
 
-The framework includes 7 production-grade examples demonstrating real-world business scenarios:
+The framework includes 7 production-grade examples demonstrating real-world business scenarios. Each example showcases a specific architecture pattern applied to solve genuine enterprise challenges.
 
-| Example | Architecture | Business Scenario | Features |
-|---------|--------------|-------------------|----------|
-| **01_competitive_intelligence** | Research | SaaS competitive analysis | Parallel competitor research, multi-channel data collection, SWOT analysis, PDF reports |
-| **02_pr_code_review** | Pipeline | Automated PR review | Architecture review, code quality check, security scan, performance analysis, test coverage |
-| **03_marketing_content** | Critic-Actor | Marketing copy optimization | Draft generation, multi-dimensional evaluation, A/B test variants, brand guideline integration |
-| **04_it_support** | Specialist Pool | IT support routing | Intelligent classification, expert routing, parallel collaboration, knowledge base integration |
-| **05_tech_decision** | Debate | Technical decision support | Pro-con debate, multi-round deliberation, expert judgment, risk analysis |
-| **06_code_debugger** | Reflexion | Adaptive debugging | Strategy execution, result reflection, dynamic adjustment, root cause identification |
-| **07_codebase_analysis** | MapReduce | Large codebase analysis | Intelligent partitioning, parallel analysis, issue aggregation, prioritized reports |
+### Example Overview
+
+| Example | Architecture | Business Scenario | Core Design Pattern |
+|---------|--------------|-------------------|---------------------|
+| **01_competitive_intelligence** | Research | SaaS competitive analysis | Parallel data gathering → Synthesis |
+| **02_pr_code_review** | Pipeline | Automated PR review | Sequential stage gating with quality thresholds |
+| **03_marketing_content** | Critic-Actor | Marketing copy optimization | Generate → Evaluate → Improve loop |
+| **04_it_support** | Specialist Pool | IT support routing | Keyword-based expert dispatch with urgency categorization |
+| **05_tech_decision** | Debate | Technical decision support | Multi-round deliberation with weighted criteria |
+| **06_code_debugger** | Reflexion | Adaptive debugging | Execute → Reflect → Adapt strategy |
+| **07_codebase_analysis** | MapReduce | Large codebase analysis | Intelligent chunking → Parallel map → Aggregate |
+
+### Design Highlights
+
+#### 1. Competitive Intelligence (Research Architecture)
+
+**Pattern**: Fan-out/Fan-in with parallel worker coordination
+
+**Key Design Decisions**:
+- **Parallel Dispatch**: Multiple researchers analyze different competitors simultaneously
+- **Multi-Channel Aggregation**: Official websites, market reports, customer reviews → single unified view
+- **SWOT Generation**: Automated strengths/weaknesses/opportunities/threats analysis
+- **Structured Output**: JSON/Markdown/PDF reports with consistent formatting
+
+**Technical Highlights**:
+```python
+# Parallel researcher dispatch
+Lead Agent → [Industry Researcher, Competitor Analyst 1, Competitor Analyst 2, ...] → Report Generator
+# Each researcher works independently, results aggregated by lead
+```
+
+**Use Case**: When you need to quickly gather competitive intelligence across multiple targets with parallel data collection
+
+---
+
+#### 2. PR Code Review (Pipeline Architecture)
+
+**Pattern**: Sequential stage processing with quality gates
+
+**Key Design Decisions**:
+- **5-Stage Pipeline**: Architecture → Code Quality → Security → Performance → Test Coverage
+- **Configurable Thresholds**: Max complexity (10), min coverage (80%), max file size (500 lines)
+- **Failure Strategies**: `stop_on_critical` (fail fast) vs `continue_all` (full audit)
+- **Progressive Refinement**: Each stage builds on previous stage's findings
+
+**Technical Highlights**:
+```python
+# Sequential execution with conditional gating
+Stage 1 (Architecture) → [Pass] → Stage 2 (Quality) → [Warning] → Stage 3 (Security) → ...
+                                                    ↓ [CRITICAL]
+                                                  STOP (if stop_on_critical)
+```
+
+**Use Case**: When code changes must pass through multiple independent review checkpoints before approval
+
+---
+
+#### 3. Marketing Content (Critic-Actor Architecture)
+
+**Pattern**: Iterative refinement through generate-evaluate loops
+
+**Key Design Decisions**:
+- **Weighted Evaluation**: SEO (25%), Engagement (30%), Brand (25%), Accuracy (20%)
+- **Brand Voice Enforcement**: Prohibited phrases detection, tone consistency checks
+- **Quality Threshold**: Stop when score ≥ 85% or max iterations reached
+- **A/B Variant Generation**: Generate multiple angles for the same message
+
+**Technical Highlights**:
+```python
+# Iterative improvement loop
+while quality_score < threshold and iterations < max:
+    content = Actor.generate()
+    scores = Critic.evaluate(content)  # Multi-dimensional weighted scoring
+    if scores.overall >= threshold: break
+    content = Actor.improve(scores.feedback)
+```
+
+**Use Case**: When content quality must meet strict brand and engagement standards through iterative refinement
+
+---
+
+#### 4. IT Support (Specialist Pool Architecture)
+
+**Pattern**: Dynamic expert routing with priority-based dispatch
+
+**Key Design Decisions**:
+- **Urgency Categorization**: Critical (1hr SLA), High (4hr), Medium (24hr), Low (72hr)
+- **Keyword-Based Routing**: Match issue keywords to specialist expertise domains
+- **Parallel Consultation**: Complex issues can trigger multiple specialists (up to 3)
+- **Fallback Mechanism**: General IT specialist handles unmatched issues
+
+**Technical Highlights**:
+```python
+# Dynamic specialist selection
+Issue → Urgency Categorizer → Keyword Matcher → [Network, Database, Security] → Consolidator
+                                              ↓ (if no match)
+                                          [General IT Specialist]
+```
+
+**Use Case**: When support issues need intelligent routing to domain experts based on content and urgency
+
+---
+
+#### 5. Tech Decision (Debate Architecture)
+
+**Pattern**: Adversarial deliberation with structured argumentation
+
+**Key Design Decisions**:
+- **3-Round Structure**: Opening Arguments → Deep Analysis → Rebuttals
+- **Weighted Criteria**: Technical (30%), Implementation (25%), Cost (25%), Risk (20%)
+- **Evidence-Based**: Arguments must cite data, industry research, or technical specs
+- **Expert Panel Judgment**: Multi-expert evaluation with dissenting opinions allowed
+
+**Technical Highlights**:
+```python
+# Structured multi-round debate
+Round 1: Proponent.argue() ↔ Opponent.argue()  # Opening positions
+Round 2: Proponent.analyze() ↔ Opponent.analyze()  # Evidence-based
+Round 3: Proponent.rebuttal() ↔ Opponent.rebuttal()  # Counter-arguments
+Final: Judge.evaluate(all_arguments, weighted_criteria)
+```
+
+**Use Case**: When technical decisions require balanced analysis of tradeoffs with structured deliberation
+
+---
+
+#### 6. Code Debugger (Reflexion Architecture)
+
+**Pattern**: Self-improving execution through reflection loops
+
+**Key Design Decisions**:
+- **Strategy Library**: Error trace analysis, code inspection, hypothesis testing, dependency check
+- **Adaptive Strategy Selection**: Reflector analyzes why previous attempts failed and suggests next approach
+- **Root Cause Taxonomy**: Categorize bugs (logic error, race condition, resource leak, etc.)
+- **Prevention Recommendations**: Learn from bug patterns to suggest prevention measures
+
+**Technical Highlights**:
+```python
+# Execute-reflect-improve loop
+while not root_cause_found and iterations < max:
+    result = Executor.execute(current_strategy)
+    reflection = Reflector.analyze(result, history)  # Why failed? What learned?
+    next_strategy = Improver.select_strategy(reflection)  # Adapt approach
+    history.append({strategy, result, reflection})
+```
+
+**Use Case**: When debugging complex issues requires systematic exploration with learning from failed attempts
+
+---
+
+#### 7. Codebase Analysis (MapReduce Architecture)
+
+**Pattern**: Divide-conquer with intelligent chunking and aggregation
+
+**Key Design Decisions**:
+- **Chunking Strategies**: By module, by file type, by size, by git change frequency
+- **Parallel Mapping**: Up to 10 concurrent mappers analyzing different chunks
+- **Weighted Scoring**: Quality (25%), Security (30%), Maintainability (25%), Coverage (20%)
+- **Issue Aggregation**: Deduplication, severity-based prioritization, module health scoring
+
+**Technical Highlights**:
+```python
+# Parallel map-reduce workflow
+Codebase → Smart Chunker → [Mapper 1, Mapper 2, ..., Mapper N] → Reducer
+           (by_module)      (parallel analysis)                   (aggregate, dedupe, prioritize)
+```
+
+**Use Case**: When analyzing large codebases (500+ files) requires parallel processing with intelligent result aggregation
+
+---
+
+### Common Implementation Patterns
+
+All examples demonstrate these production-ready patterns:
+
+| Pattern | Implementation | Benefit |
+|---------|----------------|---------|
+| **Configuration-Driven** | YAML config with validation | Easy customization without code changes |
+| **Structured Results** | Consistent JSON output format | Programmatic access and integration |
+| **Error Handling** | Try/catch with graceful degradation | Robust production deployment |
+| **Logging** | Structured JSONL + human-readable logs | Debugging and audit trail |
+| **Testing** | Unit + integration + end-to-end tests | Quality assurance and regression prevention |
+
+### Getting Started
 
 Each example includes:
 - ✅ Complete runnable code with error handling
-- ✅ Configuration files and custom components
+- ✅ Configuration files with detailed comments
+- ✅ Custom components and prompt engineering
 - ✅ Unit tests, integration tests, and end-to-end tests
 - ✅ Comprehensive documentation (English + Chinese)
 - ✅ Usage guides and customization instructions
