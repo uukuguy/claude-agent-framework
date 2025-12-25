@@ -7,12 +7,12 @@ Production-grade examples demonstrating Claude Agent Framework's 7 architectures
 | Example | Architecture | Business Scenario | Status |
 |---------|--------------|-------------------|--------|
 | [01_competitive_intelligence](01_competitive_intelligence/) | Research | SaaS Competitive Analysis | ✅ Complete |
-| [02_pr_code_review](02_pr_code_review/) | Pipeline | Automated PR Review | 🚧 In Progress |
-| [03_marketing_content](03_marketing_content/) | Critic-Actor | Marketing Copy Optimization | 📋 Planned |
-| [04_it_support](04_it_support/) | Specialist Pool | IT Support Routing | 📋 Planned |
-| [05_tech_decision](05_tech_decision/) | Debate | Technical Decision Support | 📋 Planned |
-| [06_code_debugger](06_code_debugger/) | Reflexion | Adaptive Debugging | 📋 Planned |
-| [07_codebase_analysis](07_codebase_analysis/) | MapReduce | Large Codebase Analysis | 📋 Planned |
+| [02_pr_code_review](02_pr_code_review/) | Pipeline | Automated PR Review | ✅ Complete |
+| [03_marketing_content](03_marketing_content/) | Critic-Actor | Marketing Copy Optimization | ✅ Complete |
+| [04_it_support](04_it_support/) | Specialist Pool | IT Support Routing | ✅ Complete |
+| [05_tech_decision](05_tech_decision/) | Debate | Technical Decision Support | ✅ Complete |
+| [06_code_debugger](06_code_debugger/) | Reflexion | Adaptive Debugging | ✅ Complete |
+| [07_codebase_analysis](07_codebase_analysis/) | MapReduce | Large Codebase Analysis | ✅ Complete |
 
 ## Quick Start
 

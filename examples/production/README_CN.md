@@ -7,12 +7,12 @@
 | 示例 | 架构 | 业务场景 | 状态 |
 |------|------|----------|------|
 | [01_competitive_intelligence](01_competitive_intelligence/) | Research | SaaS 竞品分析 | ✅ 已完成 |
-| [02_pr_code_review](02_pr_code_review/) | Pipeline | 自动化 PR 审查 | 🚧 开发中 |
-| [03_marketing_content](03_marketing_content/) | Critic-Actor | 营销文案优化 | 📋 计划中 |
-| [04_it_support](04_it_support/) | Specialist Pool | IT 支持路由 | 📋 计划中 |
-| [05_tech_decision](05_tech_decision/) | Debate | 技术决策支持 | 📋 计划中 |
-| [06_code_debugger](06_code_debugger/) | Reflexion | 自适应调试 | 📋 计划中 |
-| [07_codebase_analysis](07_codebase_analysis/) | MapReduce | 大规模代码库分析 | 📋 计划中 |
+| [02_pr_code_review](02_pr_code_review/) | Pipeline | 自动化 PR 审查 | ✅ 已完成 |
+| [03_marketing_content](03_marketing_content/) | Critic-Actor | 营销文案优化 | ✅ 已完成 |
+| [04_it_support](04_it_support/) | Specialist Pool | IT 支持路由 | ✅ 已完成 |
+| [05_tech_decision](05_tech_decision/) | Debate | 技术决策支持 | ✅ 已完成 |
+| [06_code_debugger](06_code_debugger/) | Reflexion | 自适应调试 | ✅ 已完成 |
+| [07_codebase_analysis](07_codebase_analysis/) | MapReduce | 大规模代码库分析 | ✅ 已完成 |
 
 ## 快速开始
 
