@@ -569,20 +569,294 @@ cost = tokens.estimate_cost_usd(
 
 ---
 
+## ✅ Phase 1.4: 动态代理注册系统（已完成）
+
+**完成时间**: 2025-12-25
+**状态**: ✅ 全部完成，32个测试通过，总计111个测试通过
+
+### 模块实现
+
+#### 1. dynamic/validator.py (240行)
+
+**功能**: 代理配置验证器
+
+核心类和函数：
+```python
+class AgentConfigValidator:
+    """验证动态代理配置"""
+
+    @staticmethod
+    def validate_name(name: str) -> None:
+        """验证代理名称（字母数字+下划线/连字符）"""
+
+    @staticmethod
+    def validate_description(description: str) -> None:
+        """验证描述（最少10字符）"""
+
+    @staticmethod
+    def validate_tools(tools: list[str]) -> None:
+        """验证工具列表（必须在ALLOWED_TOOLS中）"""
+
+    @staticmethod
+    def validate_prompt(prompt: str) -> None:
+        """验证提示词（最少20字符）"""
+
+    @staticmethod
+    def validate_model(model: str) -> None:
+        """验证模型名称（haiku/sonnet/opus）"""
+
+    @classmethod
+    def validate_full(cls, name, description, tools, prompt, model) -> None:
+        """完整配置验证"""
+
+def validate_agent_config(config: dict[str, Any]) -> None:
+    """验证代理配置字典"""
+```
+
+**验证规则**:
+- 代理名称：字母数字+下划线/连字符，不能以数字开头
+- 描述：至少10字符
+- 工具：至少1个，必须在允许列表中
+- 提示词：至少20字符
+- 模型：haiku/sonnet/opus之一
+
+#### 2. dynamic/agent_registry.py (175行)
+
+**功能**: 动态代理注册表
+
+```python
+class DynamicAgentRegistry:
+    """运行时代理管理器"""
+
+    def __init__(self) -> None:
+        self._agents: dict[str, AgentDefinition] = {}
+
+    def register(self, name, description, tools, prompt, model) -> None:
+        """注册新代理（自动验证）"""
+
+    def unregister(self, name: str) -> None:
+        """移除代理"""
+
+    def get(self, name: str) -> AgentDefinition | None:
+        """获取代理定义"""
+
+    def list_agents(self) -> list[str]:
+        """列出所有代理名称"""
+
+    def get_all(self) -> dict[str, AgentDefinition]:
+        """获取所有代理"""
+
+    def clear(self) -> None:
+        """清空注册表"""
+
+    # 魔术方法
+    def __len__(self) -> int
+    def __contains__(self, name: str) -> bool
+```
+
+**使用示例**:
+```python
+registry = DynamicAgentRegistry()
+registry.register(
+    name="social_analyst",
+    description="Analyze social media trends",
+    tools=["WebSearch", "Write"],
+    prompt="You analyze social media...",
+    model="haiku"
+)
+```
+
+#### 3. dynamic/loader.py (230行)
+
+**功能**: 动态架构创建
+
+```python
+def create_dynamic_architecture(
+    name: str,
+    description: str,
+    agents: dict[str, dict[str, Any]],
+    lead_prompt: str,
+    lead_tools: list[str] | None = None,
+    lead_model: str = "haiku",
+) -> type[BaseArchitecture]:
+    """
+    动态创建架构类
+
+    返回一个新的架构类，可以直接用于init()
+    """
+
+def load_architecture_from_config(config: dict[str, Any]) -> type[BaseArchitecture]:
+    """从配置字典加载架构"""
+```
+
+**使用示例**:
+```python
+from claude_agent_framework.dynamic import create_dynamic_architecture
+from claude_agent_framework import init
+
+# 创建自定义架构
+CustomArch = create_dynamic_architecture(
+    name="custom_pipeline",
+    description="Custom data processing pipeline",
+    agents={
+        "collector": {
+            "description": "Collect data from sources",
+            "tools": ["WebSearch", "Write"],
+            "prompt": "You collect data...",
+        },
+        "processor": {
+            "description": "Process collected data",
+            "tools": ["Read", "Write"],
+            "prompt": "You process data...",
+            "model": "sonnet",
+        },
+    },
+    lead_prompt="You coordinate data collection and processing..."
+)
+
+# 使用自定义架构
+session = init(CustomArch)
+```
+
+#### 4. core/base.py 修改
+
+**新增属性和方法**:
+```python
+class BaseArchitecture(ABC):
+    def __init__(self, ...):
+        # ... 现有代码 ...
+
+        # 动态代理注册表
+        from claude_agent_framework.dynamic.agent_registry import DynamicAgentRegistry
+        self._dynamic_agents = DynamicAgentRegistry()
+
+    @property
+    def dynamic_agents(self):
+        """获取动态代理注册表"""
+        return self._dynamic_agents
+
+    def add_agent(self, name, description, tools, prompt, model="haiku") -> None:
+        """运行时添加代理"""
+        self._dynamic_agents.register(
+            name=name,
+            description=description,
+            tools=tools,
+            prompt=prompt,
+            model=model,
+        )
+
+    def remove_agent(self, name: str) -> None:
+        """移除动态代理"""
+        self._dynamic_agents.unregister(name)
+
+    def list_dynamic_agents(self) -> list[str]:
+        """列出所有动态代理"""
+        return self._dynamic_agents.list_agents()
+
+    def to_sdk_agents(self) -> dict[str, Any]:
+        """合并静态和动态代理（动态优先）"""
+        # 静态代理
+        result = {static agents...}
+
+        # 合并动态代理（覆盖同名静态代理）
+        dynamic_agents = self._dynamic_agents.get_all()
+        result.update(dynamic_agents)
+
+        return result
+```
+
+**使用示例**:
+```python
+from claude_agent_framework import init
+
+session = init("research")
+
+# 运行时添加新代理
+session.architecture.add_agent(
+    name="social_analyst",
+    description="Analyze social media trends",
+    tools=["WebSearch", "Write"],
+    prompt="You are a social media analyst...",
+    model="haiku"
+)
+
+# 查看所有动态代理
+print(session.architecture.list_dynamic_agents())
+# ['social_analyst']
+
+# 移除代理
+session.architecture.remove_agent("social_analyst")
+```
+
+### 测试实现
+
+**tests/dynamic/test_dynamic.py** (350行, 32个测试):
+
+**测试覆盖**:
+1. **AgentConfigValidator测试** (18个测试)
+   - 名称验证（有效、空、无效字符、数字开头）
+   - 描述验证（有效、空、太短）
+   - 工具验证（有效、空、无效工具）
+   - 提示词验证（有效、空、太短）
+   - 模型验证（有效、无效）
+   - 完整配置验证
+   - 字典配置验证（有效、缺失字段）
+
+2. **DynamicAgentRegistry测试** (9个测试)
+   - 初始化
+   - 注册代理（成功、重复错误）
+   - 取消注册（成功、不存在错误）
+   - 获取代理（存在、不存在）
+   - 获取所有代理
+   - 清空注册表
+
+3. **create_dynamic_architecture测试** (5个测试)
+   - 创建架构类
+   - 创建架构实例
+   - 无效名称错误
+   - 无效代理列表错误
+   - 无效代理配置错误
+
+**测试结果**: 32/32 通过 ✅
+
+### 核心特性
+
+**1. 运行时代理添加**
+- 无需修改架构类即可添加新代理
+- 自动配置验证
+- 与静态代理无缝集成
+
+**2. 动态架构创建**
+- 完全编程式创建架构
+- 支持自定义执行逻辑
+- 可继承和扩展
+
+**3. 配置验证**
+- 全面的输入验证
+- 友好的错误消息
+- 防止运行时错误
+
+**4. 灵活集成**
+- 与现有插件系统兼容
+- 动态代理优先于静态代理
+- 支持模型级别覆盖
+
+### 文件清单
+
+**新增文件**:
+- `src/claude_agent_framework/dynamic/__init__.py`
+- `src/claude_agent_framework/dynamic/validator.py` (240行)
+- `src/claude_agent_framework/dynamic/agent_registry.py` (175行)
+- `src/claude_agent_framework/dynamic/loader.py` (230行)
+- `tests/dynamic/__init__.py`
+- `tests/dynamic/test_dynamic.py` (350行)
+
+**修改文件**:
+- `src/claude_agent_framework/core/base.py` (+93行)
+
+---
+
 ## 待实施阶段
-
-### Phase 1.4: 动态代理注册（1天）
-
-**模块**:
-- `dynamic/__init__.py`
-- `dynamic/agent_registry.py`
-- `dynamic/loader.py`
-- `dynamic/validator.py`
-
-**功能**:
-- 运行时添加代理
-- 动态架构创建
-- 代理配置验证
 
 ### Phase 2: 内置插件与可观测性（1周）
 
@@ -702,12 +976,20 @@ cost = tokens.estimate_cost_usd(
 - `tests/metrics/__init__.py`
 - `tests/metrics/test_metrics.py` (320行)
 
+**动态代理系统**:
+- `src/claude_agent_framework/dynamic/__init__.py`
+- `src/claude_agent_framework/dynamic/validator.py` (240行)
+- `src/claude_agent_framework/dynamic/agent_registry.py` (175行)
+- `src/claude_agent_framework/dynamic/loader.py` (230行)
+- `tests/dynamic/__init__.py`
+- `tests/dynamic/test_dynamic.py` (350行)
+
 **文档**:
 - `docs/CONFIG_USAGE.md` (完整配置系统使用指南)
 - `docs/dev/WORK_LOG.md` (工作日志，本文件)
 
 **修改文件**:
-- `src/claude_agent_framework/core/base.py` (集成PluginManager)
+- `src/claude_agent_framework/core/base.py` (集成PluginManager和DynamicAgentRegistry)
 - `pyproject.toml` (添加config optional dependency)
 
 ### 测试统计
@@ -715,7 +997,8 @@ cost = tokens.estimate_cost_usd(
 - **插件系统测试**: 26个，100%通过 ✅
 - **配置系统测试**: 23个，100%通过 ✅
 - **指标系统测试**: 30个，100%通过 ✅
-- **总计**: 79个测试，100%通过 ✅
+- **动态代理测试**: 32个，100%通过 ✅
+- **总计**: 111个测试，100%通过 ✅
 
 ---
 
@@ -724,14 +1007,15 @@ cost = tokens.estimate_cost_usd(
 1. ✅ **完整的插件生命周期系统** - 9个钩子，支持session/execution/agent/tool/error级别
 2. ✅ **类型安全的配置系统** - Pydantic验证，多源加载，环境Profile
 3. ✅ **生产级指标追踪系统** - 自动收集，多格式导出，成本估算
-4. ✅ **内置MetricsCollectorPlugin** - 零侵入式集成到插件系统
-5. ✅ **100%向后兼容** - 旧代码无需修改即可运行
-6. ✅ **完整的测试覆盖** - 79个单元测试，覆盖所有核心功能
-7. ✅ **生产级质量** - 错误处理、类型检查、文档齐全
-8. ✅ **多格式导出** - JSON/CSV/Prometheus，满足不同场景
+4. ✅ **动态代理注册系统** - 运行时添加代理，动态创建架构，配置验证
+5. ✅ **内置MetricsCollectorPlugin** - 零侵入式集成到插件系统
+6. ✅ **100%向后兼容** - 旧代码无需修改即可运行
+7. ✅ **完整的测试覆盖** - 111个单元测试，覆盖所有核心功能
+8. ✅ **生产级质量** - 错误处理、类型检查、文档齐全
+9. ✅ **多格式导出** - JSON/CSV/Prometheus，满足不同场景
 
 ---
 
 ## 下一步
 
-继续Phase 1.4: 实现动态代理注册系统。
+继续Phase 2: 内置插件与可观测性。

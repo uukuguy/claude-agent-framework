@@ -133,6 +133,11 @@ class BaseArchitecture(ABC):
 
         self._plugin_manager = PluginManager()
 
+        # Dynamic agent registry
+        from claude_agent_framework.dynamic.agent_registry import DynamicAgentRegistry
+
+        self._dynamic_agents = DynamicAgentRegistry()
+
     @property
     def prompts_dir(self) -> Path:
         """Get prompts directory for this architecture."""
@@ -269,6 +274,87 @@ class BaseArchitecture(ABC):
         """
         return self._plugin_manager
 
+    @property
+    def dynamic_agents(self):
+        """
+        Get the dynamic agent registry.
+
+        Returns:
+            DynamicAgentRegistry instance for runtime agent management
+        """
+        return self._dynamic_agents
+
+    def add_agent(
+        self,
+        name: str,
+        description: str,
+        tools: list[str],
+        prompt: str,
+        model: str = "haiku",
+    ) -> None:
+        """
+        Add an agent dynamically at runtime.
+
+        This allows adding new agents without modifying the architecture class.
+        Dynamic agents are merged with static agents from get_agents().
+
+        Args:
+            name: Unique agent name (used as subagent_type)
+            description: Description of when to use this agent
+            tools: List of allowed tool names
+            prompt: Agent system prompt
+            model: Model to use (default: haiku)
+
+        Raises:
+            AgentConfigError: If configuration is invalid
+            ValueError: If agent name already exists
+
+        Example:
+            >>> session = init("research")
+            >>> session.architecture.add_agent(
+            ...     name="social_analyst",
+            ...     description="Analyze social media trends",
+            ...     tools=["WebSearch", "Write"],
+            ...     prompt="You analyze social media trends...",
+            ...     model="haiku"
+            ... )
+        """
+        self._dynamic_agents.register(
+            name=name,
+            description=description,
+            tools=tools,
+            prompt=prompt,
+            model=model,
+        )
+
+    def remove_agent(self, name: str) -> None:
+        """
+        Remove a dynamically registered agent.
+
+        Args:
+            name: Agent name to remove
+
+        Raises:
+            KeyError: If agent not found in dynamic registry
+
+        Example:
+            >>> session.architecture.remove_agent("social_analyst")
+        """
+        self._dynamic_agents.unregister(name)
+
+    def list_dynamic_agents(self) -> list[str]:
+        """
+        List all dynamically registered agent names.
+
+        Returns:
+            List of dynamic agent names
+
+        Example:
+            >>> session.architecture.list_dynamic_agents()
+            ['social_analyst', 'custom_agent']
+        """
+        return self._dynamic_agents.list_agents()
+
     def _apply_before_execute(self, prompt: str) -> str:
         """Apply all plugin before_execute hooks."""
         for plugin in self._plugins:
@@ -296,13 +382,17 @@ class BaseArchitecture(ABC):
         """
         Convert agent configs to Claude SDK AgentDefinition format.
 
+        Merges static agents from get_agents() with dynamically registered agents.
+        Dynamic agents take precedence if names conflict.
+
         Returns:
             Dict suitable for ClaudeAgentOptions.agents parameter
         """
         from claude_agent_sdk import AgentDefinition
 
+        # Start with static agents
         agents = self.get_agents()
-        return {
+        result = {
             name: AgentDefinition(
                 description=config.description,
                 tools=config.tools,
@@ -311,6 +401,12 @@ class BaseArchitecture(ABC):
             )
             for name, config in agents.items()
         }
+
+        # Merge dynamic agents (they override static ones with same name)
+        dynamic_agents = self._dynamic_agents.get_all()
+        result.update(dynamic_agents)
+
+        return result
 
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__}(name={self.name!r})>"
