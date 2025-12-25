@@ -29,6 +29,23 @@ The framework solves the problem of complex tasks requiring multiple specialized
 - **Bilingual Documentation Required**: README and BEST_PRACTICES must have both English and Chinese versions (README.md/README_CN.md, BEST_PRACTICES.md/BEST_PRACTICES_CN.md)
 - **Documentation Sync**: When major features are added or modified, all related documentation files must be updated synchronously
 
+## Development Workflow
+
+### Git Commit Strategy
+
+**IMPORTANT**: Commit changes after each phase completion.
+
+- ✅ **DO** commit immediately after completing each implementation phase
+- ✅ **DO** include comprehensive commit messages with phase details
+- ✅ **DO** ensure all tests pass before committing
+- ✅ **DO** update work log (docs/dev/WORK_LOG.md) before committing
+
+**Rationale**: Phase-by-phase commits provide:
+- Clear development history and progress tracking
+- Easy rollback to specific phase if needed
+- Better code review and collaboration
+- Atomic, well-documented changes
+
 ## Development Commands
 
 ```bash
