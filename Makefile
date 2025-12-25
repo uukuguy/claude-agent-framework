@@ -156,7 +156,7 @@ publish-test:
 	@echo "📤 Publishing to TestPyPI..."
 	@if [ -f ~/.pypirc ] && [ -z "$$UV_PUBLISH_PASSWORD" ]; then \
 		echo "🔑 Reading credentials from ~/.pypirc..."; \
-		PYPI_PASSWORD=$$(sed -n '/^\[testpypi\]/,/^\[/p' ~/.pypirc | grep "^password" | sed 's/password[[:space:]]*=[[:space:]]*//'); \
+		PYPI_PASSWORD=$$(sed -n '/^\[testpypi\]/,/^\[/p' ~/.pypirc | grep "^password" | sed 's/password[[:space:]]*=[[:space:]]*//' | tr -d '\n\r'); \
 		UV_PUBLISH_USERNAME=__token__ UV_PUBLISH_PASSWORD="$$PYPI_PASSWORD" uv publish --publish-url https://test.pypi.org/legacy/; \
 	else \
 		uv publish --publish-url https://test.pypi.org/legacy/; \
@@ -166,7 +166,7 @@ publish-prod:
 	@echo "📤 Publishing to PyPI..."
 	@if [ -f ~/.pypirc ] && [ -z "$$UV_PUBLISH_PASSWORD" ]; then \
 		echo "🔑 Reading credentials from ~/.pypirc..."; \
-		PYPI_PASSWORD=$$(sed -n '/^\[pypi\]/,/^\[/p' ~/.pypirc | grep "^password" | sed 's/password[[:space:]]*=[[:space:]]*//'); \
+		PYPI_PASSWORD=$$(sed -n '/^\[pypi\]/,/^\[/p' ~/.pypirc | grep "^password" | sed 's/password[[:space:]]*=[[:space:]]*//' | tr -d '\n\r'); \
 		UV_PUBLISH_USERNAME=__token__ UV_PUBLISH_PASSWORD="$$PYPI_PASSWORD" uv publish; \
 	else \
 		uv publish; \
