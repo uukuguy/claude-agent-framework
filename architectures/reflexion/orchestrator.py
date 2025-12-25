@@ -1,0 +1,214 @@
+"""
+Reflexion architecture orchestrator.
+
+Implements execute-reflect-improve cycle:
+1. Executor attempts the task
+2. Reflector analyzes the result
+3. If failed, Reflector provides improved strategy
+4. Repeat until success or max attempts
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, AsyncIterator
+
+from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient, HookMatcher
+
+from claude_agent_framework.architectures.reflexion.config import ReflexionConfig
+from claude_agent_framework.core.base import (
+    AgentDefinitionConfig,
+    AgentModelConfig,
+    BaseArchitecture,
+)
+from claude_agent_framework.core.registry import register_architecture
+
+if TYPE_CHECKING:
+    from claude_agent_framework.utils import SubagentTracker, TranscriptWriter
+
+
+@dataclass
+class ReflectionRecord:
+    """Record of a single reflection cycle."""
+
+    attempt: int
+    action: str
+    result: str
+    success: bool
+    lessons_learned: list[str] = field(default_factory=list)
+    next_strategy: str = ""
+
+
+@register_architecture("reflexion")
+class ReflexionArchitecture(BaseArchitecture):
+    """
+    Reflexion architecture for iterative problem solving.
+
+    Pattern: Execute-Reflect-Improve
+    - Executor: Attempts to solve the problem
+    - Reflector: Analyzes results and provides insights
+    - Loop: Iterate with improved strategies
+
+    Usage:
+        arch = ReflexionArchitecture()
+        async for msg in arch.execute("Debug why tests are failing"):
+            print(msg)
+    """
+
+    name = "reflexion"
+    description = "Execute-reflect-improve cycle for complex problem solving and debugging"
+
+    def __init__(
+        self,
+        config: ReflexionConfig | None = None,
+        model_config: AgentModelConfig | None = None,
+        prompts_dir: Path | None = None,
+        files_dir: Path | None = None,
+    ) -> None:
+        """Initialize reflexion architecture."""
+        self.reflexion_config = config or ReflexionConfig()
+
+        if model_config is None:
+            model_config = AgentModelConfig(
+                default=self.reflexion_config.executor_model,
+                overrides=self.reflexion_config.get_model_overrides(),
+            )
+
+        super().__init__(
+            model_config=model_config,
+            prompts_dir=prompts_dir,
+            files_dir=files_dir,
+        )
+
+        self._reflection_history: list[ReflectionRecord] = []
+
+    def get_agents(self) -> dict[str, AgentDefinitionConfig]:
+        """Get executor and reflector agent definitions."""
+        return {
+            "executor": AgentDefinitionConfig(
+                name="executor",
+                description="Execute tasks and attempt to solve problems",
+                tools=["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
+                prompt_file="executor.txt",
+            ),
+            "reflector": AgentDefinitionConfig(
+                name="reflector",
+                description="Analyze execution results and provide improvement strategies",
+                tools=["Read", "Glob"],
+                prompt_file="reflector.txt",
+            ),
+        }
+
+    def get_lead_prompt(self) -> str:
+        """Get lead agent prompt for reflexion coordination."""
+        base_prompt = super().get_lead_prompt()
+
+        return base_prompt + f"""
+# Reflexion Coordinator
+
+You are responsible for coordinating the execute-reflect-improve loop until the task is successfully completed.
+
+# Rules
+1. Maximum attempts: {self.reflexion_config.max_attempts}
+2. Each cycle: Execute → Reflect → (Improved strategy → Re-execute)
+3. Stop on success, continue improving on failure
+
+# Workflow
+
+```
+attempt = 0
+strategy = initial_task
+
+while attempt < max_attempts:
+    # Execute task
+    result = Task(executor, strategy)
+
+    # Reflect and analyze
+    reflection = Task(reflector, result)
+
+    if reflection.success:
+        break
+
+    # Extract improved strategy
+    strategy = reflection.improved_strategy
+    attempt += 1
+```
+
+# Available Agents
+
+## executor
+- Responsibility: Execute tasks
+- Input: Task description + improved strategy (if any)
+- Output: Execution result
+
+## reflector
+- Responsibility: Analyze and improve
+- Input: Execution result
+- Output: Analysis + improved strategy
+
+# Success Criteria
+Observe execution results for:
+- Success indicators: {', '.join(self.reflexion_config.success_indicators)}
+- Failure indicators: {', '.join(self.reflexion_config.failure_indicators)}
+
+# Output Specification
+After each attempt, report:
+- Attempt number
+- Execution result summary
+- Success status
+- Next strategy (if continuing)
+"""
+
+    async def execute(
+        self,
+        prompt: str,
+        tracker: SubagentTracker | None = None,
+        transcript: TranscriptWriter | None = None,
+    ) -> AsyncIterator[Any]:
+        """Execute reflexion loop."""
+        prompt = self._apply_before_execute(prompt)
+        hooks = self._build_hooks(tracker)
+        lead_prompt = self.get_lead_prompt()
+        agents = self.to_sdk_agents()
+
+        options = ClaudeAgentOptions(
+            permission_mode="bypassPermissions",
+            setting_sources=["project"],
+            system_prompt=lead_prompt,
+            allowed_tools=["Task"],
+            agents=agents,
+            hooks=hooks,
+            model=self.model_config.default,
+        )
+
+        async with ClaudeSDKClient(options=options) as client:
+            await client.query(prompt=f"Task: {prompt}")
+
+            async for msg in client.receive_response():
+                yield msg
+
+                if hasattr(msg, "content") and msg.content:
+                    self._result = msg.content
+
+    def _build_hooks(self, tracker: SubagentTracker | None) -> dict[str, list]:
+        """Build hook configuration."""
+        hooks: dict[str, list] = {}
+
+        if tracker:
+            hooks["PreToolUse"] = [
+                HookMatcher(matcher=None, hooks=[tracker.pre_tool_use_hook])
+            ]
+            hooks["PostToolUse"] = [
+                HookMatcher(matcher=None, hooks=[tracker.post_tool_use_hook])
+            ]
+
+        return hooks
+
+    def get_reflection_history(self) -> list[ReflectionRecord]:
+        """Get history of all reflection cycles."""
+        return self._reflection_history
+
+    def clear_history(self) -> None:
+        """Clear reflection history."""
+        self._reflection_history.clear()
