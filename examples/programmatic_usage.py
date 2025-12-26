@@ -16,10 +16,10 @@ logger = logging.getLogger(__name__)
 
 async def programmatic_example():
     """Programmatic usage with full control over components."""
-    from claude_agent_framework import init
+    from claude_agent_framework import create_session
 
     # Initialize session
-    session = init(
+    session = create_session(
         "research",
         model="haiku",
         verbose=True,
@@ -59,9 +59,9 @@ async def quick_query_example():
 
 async def context_manager_example():
     """Using session as context manager for automatic cleanup."""
-    from claude_agent_framework import init
+    from claude_agent_framework import create_session
 
-    async with init("research") as session:
+    async with create_session("research") as session:
         async for msg in session.run("Analyze Python web frameworks"):
             print(msg)
     # Session is automatically cleaned up here
@@ -69,9 +69,9 @@ async def context_manager_example():
 
 async def multiple_queries_example():
     """Run multiple queries in a single session."""
-    from claude_agent_framework import init
+    from claude_agent_framework import create_session
 
-    session = init("research")
+    session = create_session("research")
 
     queries = [
         "What are the top 3 Python web frameworks?",

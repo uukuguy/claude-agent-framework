@@ -25,7 +25,7 @@ from common import (
     validate_config,
 )
 
-from claude_agent_framework import init
+from claude_agent_framework import create_session
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ async def run_pr_review(config: dict) -> dict:
         prompt = _build_pipeline_prompt(stages, pr_data, analysis_config)
 
         # Initialize session with Pipeline architecture
-        session = init(
+        session = create_session(
             "pipeline",
             model=models.get("lead", "sonnet"),
             verbose=False,

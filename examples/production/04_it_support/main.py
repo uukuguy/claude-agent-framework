@@ -25,7 +25,7 @@ from common import (
     validate_config,
 )
 
-from claude_agent_framework import init
+from claude_agent_framework import create_session
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +77,7 @@ async def run_it_support(config: dict, issue_title: str, issue_description: str)
     )
 
     # Run specialist pool architecture
-    session = init("specialist_pool", model=models.get("lead", "sonnet"), verbose=False)
+    session = create_session("specialist_pool", model=models.get("lead", "sonnet"), verbose=False)
 
     results = []
     async for msg in session.run(prompt):

@@ -7,14 +7,14 @@ Demonstrates how to use Claude Agent Framework with the simplified init() API.
 
 import asyncio
 
-from claude_agent_framework import init
+from claude_agent_framework import create_session
 
 
 async def basic_example():
     """Basic usage with the simplified init() API."""
     # Initialize session with default settings
     # API key validation, directory creation, and logging are handled automatically
-    session = init("research")
+    session = create_session("research")
 
     # Run interactive session
     async for msg in session.run("Analyze AI market trends in 2024"):
@@ -23,7 +23,7 @@ async def basic_example():
 
 async def single_query_example():
     """Single query example."""
-    session = init("research")
+    session = create_session("research")
 
     # Execute single query
     async for msg in session.run("Research applications of AI in healthcare"):
@@ -33,7 +33,7 @@ async def single_query_example():
 async def with_options_example():
     """Example with custom options."""
     # Initialize with options
-    session = init(
+    session = create_session(
         "research",
         model="sonnet",  # Use a more powerful model
         verbose=True,  # Enable debug logging
@@ -47,12 +47,12 @@ async def with_options_example():
 async def different_architectures_example():
     """Example using different architectures."""
     # Pipeline architecture for code development
-    pipeline_session = init("pipeline")
+    pipeline_session = create_session("pipeline")
     async for msg in pipeline_session.run("Create a simple REST API"):
         print(msg)
 
     # Debate architecture for decision support
-    debate_session = init("debate")
+    debate_session = create_session("debate")
     async for msg in debate_session.run("Should we use microservices or monolith?"):
         print(msg)
 

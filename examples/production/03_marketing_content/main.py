@@ -24,7 +24,7 @@ from common import (
     validate_config,
 )
 
-from claude_agent_framework import init
+from claude_agent_framework import create_session
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ async def run_content_optimization(config: dict) -> dict:
     )
 
     # Run critic-actor architecture
-    session = init("critic_actor", model=models.get("lead", "sonnet"), verbose=False)
+    session = create_session("critic_actor", model=models.get("lead", "sonnet"), verbose=False)
 
     results = []
     async for msg in session.run(prompt):
@@ -350,7 +350,7 @@ async def _generate_ab_variants(
 Provide the variant content:
 """
 
-        session = init("research", model=models.get("actor", "sonnet"), verbose=False)
+        session = create_session("research", model=models.get("actor", "sonnet"), verbose=False)
         variant_text = []
         async for msg in session.run(prompt):
             variant_text.append(msg)

@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from common import ResultSaver, load_yaml_config, validate_config
 
-from claude_agent_framework import init
+from claude_agent_framework import create_session
 
 
 class ConfigurationError(Exception):
@@ -76,7 +76,7 @@ async def run_tech_decision(
 
     # Initialize debate session
     try:
-        session = init("debate", model=models.get("lead", "sonnet"), verbose=False)
+        session = create_session("debate", model=models.get("lead", "sonnet"), verbose=False)
     except Exception as e:
         raise ExecutionError(f"Failed to initialize debate session: {e}")
 

@@ -25,7 +25,7 @@ from common import (
     validate_config,
 )
 
-from claude_agent_framework import init
+from claude_agent_framework import create_session
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +57,7 @@ async def run_competitive_intelligence(config: dict) -> dict:
         )
 
         # Initialize session with Research architecture
-        session = init(
+        session = create_session(
             "research",
             model=models.get("lead", "sonnet"),
             verbose=False,

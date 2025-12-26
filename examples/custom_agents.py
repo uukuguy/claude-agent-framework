@@ -8,7 +8,7 @@ Demonstrates how to define and register custom architectures.
 import asyncio
 from typing import Any
 
-from claude_agent_framework import init, register_architecture
+from claude_agent_framework import create_session, register_architecture
 from claude_agent_framework.core.base import BaseArchitecture
 
 
@@ -53,7 +53,7 @@ class CustomQAArchitecture(BaseArchitecture):
 async def custom_architecture_example():
     """Use a custom registered architecture."""
     # The custom_qa architecture is now available
-    session = init("custom_qa")
+    session = create_session("custom_qa")
 
     async for msg in session.run("What are the best practices for Python async programming?"):
         print(msg)

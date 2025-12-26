@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from common import ResultSaver, load_yaml_config, validate_config
 
-from claude_agent_framework import init
+from claude_agent_framework import create_session
 
 
 class ConfigurationError(Exception):
@@ -112,7 +112,7 @@ async def run_code_debugger(
 
     # Initialize reflexion session
     try:
-        session = init("reflexion", model=models.get("lead", "sonnet"), verbose=False)
+        session = create_session("reflexion", model=models.get("lead", "sonnet"), verbose=False)
     except Exception as e:
         raise ExecutionError(f"Failed to initialize reflexion session: {e}")
 
