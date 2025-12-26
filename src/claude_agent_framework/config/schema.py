@@ -99,6 +99,90 @@ class AgentConfigSchema(BaseModel):
         return self
 
 
+class AgentPromptOverrideSchema(BaseModel):
+    """
+    Schema for agent-level prompt override configuration.
+
+    Used in YAML config to customize prompts for specific agents.
+
+    Attributes:
+        business_prompt: Inline business prompt content (overrides template)
+        business_prompt_file: Business prompt file path
+        template_vars: Agent-specific template variables
+    """
+
+    business_prompt: str = Field(
+        default="", description="Inline business prompt content"
+    )
+    business_prompt_file: str = Field(
+        default="", description="Business prompt file path"
+    )
+    template_vars: dict[str, Any] = Field(
+        default_factory=dict, description="Agent-specific template variables"
+    )
+
+
+class PromptsConfigSchema(BaseModel):
+    """
+    Schema for prompts configuration block.
+
+    Configures business templates and prompt customization.
+
+    Attributes:
+        business_template: Name of business template to use
+        prompts_dir: Application-level custom prompts directory
+        template_vars: Global template variables for all agents
+        agents: Agent-specific prompt overrides
+    """
+
+    business_template: str | None = Field(
+        default=None,
+        description="Name of business template (e.g., 'competitive_intelligence')",
+    )
+    prompts_dir: str | None = Field(
+        default=None,
+        description="Application-level custom prompts directory",
+    )
+    template_vars: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Global template variables for ${var} substitution",
+    )
+    agents: dict[str, AgentPromptOverrideSchema] = Field(
+        default_factory=dict,
+        description="Agent-specific prompt overrides",
+    )
+
+    def get_prompt_overrides(self) -> dict[str, str]:
+        """
+        Extract prompt overrides from agent configurations.
+
+        Returns:
+            Dict of agent_name -> business_prompt for agents with inline prompts
+        """
+        overrides = {}
+        for agent_name, config in self.agents.items():
+            if config.business_prompt:
+                overrides[agent_name] = config.business_prompt
+        return overrides
+
+    def get_merged_template_vars(self, agent_name: str) -> dict[str, Any]:
+        """
+        Get merged template variables for an agent.
+
+        Agent-specific variables override global variables.
+
+        Args:
+            agent_name: Name of the agent
+
+        Returns:
+            Merged template variables dict
+        """
+        result = dict(self.template_vars)
+        if agent_name in self.agents:
+            result.update(self.agents[agent_name].template_vars)
+        return result
+
+
 class FrameworkConfigSchema(BaseModel):
     """
     Pydantic schema for framework configuration.
@@ -153,6 +237,12 @@ class FrameworkConfigSchema(BaseModel):
     # Feature flags
     enable_metrics: bool = Field(default=False, description="Enable metrics collection")
     enable_plugins: bool = Field(default=True, description="Enable plugin system")
+
+    # Prompts configuration (NEW)
+    prompts: PromptsConfigSchema = Field(
+        default_factory=PromptsConfigSchema,
+        description="Prompts configuration for business templates and customization",
+    )
 
     @field_validator("lead_agent_tools")
     @classmethod

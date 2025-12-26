@@ -1,0 +1,20 @@
+# Business Template: Marketing Content
+
+name: marketing_content
+description: Marketing content creation and optimization
+applicable_architectures:
+  - critic_actor
+version: "1.0.0"
+
+# Agent prompts provided
+agents:
+  - content_creator
+  - content_critic
+  - lead_agent
+
+# Template variables (examples)
+template_variables:
+  brand_name: "Brand Name"
+  target_audience: "Target Audience"
+  content_type: "blog post"
+  brand_voice: "professional yet approachable"

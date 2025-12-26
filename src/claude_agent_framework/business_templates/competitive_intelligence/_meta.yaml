@@ -1,0 +1,25 @@
+# Business Template: Competitive Intelligence
+
+name: competitive_intelligence
+description: Competitive intelligence analysis for market research
+applicable_architectures:
+  - research
+  - pipeline
+version: "1.0.0"
+
+# Agent prompts provided
+agents:
+  - researcher
+  - data_analyst
+  - report_writer
+  - lead_agent
+
+# Template variables (examples)
+template_variables:
+  company_name: "Target Company"
+  industry: "Technology"
+  competitors: []
+  analysis_dimensions:
+    - "Product Features"
+    - "Pricing Model"
+    - "Market Share"

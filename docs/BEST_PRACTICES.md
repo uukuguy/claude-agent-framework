@@ -586,6 +586,124 @@ def load_prompt(filename: str) -> str:
     return prompt_path.read_text(encoding="utf-8").strip()
 ```
 
+### 7.4 Business Templates System
+
+The framework provides a **layered prompt system** that separates architecture-level prompts from business-specific prompts:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Application Layer (examples/production/)               │
+│  - Choose business template or fully customize          │
+│  - Final decision on business prompts                   │
+└─────────────────────────────────────────────────────────┘
+                          ↓ select/override
+┌─────────────────────────────────────────────────────────┐
+│  Business Template Layer (business_templates/)          │
+│  - Independent of architectures                         │
+│  - Organized by business type                           │
+│  - Pre-built templates for common use cases             │
+└─────────────────────────────────────────────────────────┘
+                          ↓ compose
+┌─────────────────────────────────────────────────────────┐
+│  Architecture Layer (architectures/)                    │
+│  - Core agent role, capabilities, constraints           │
+│  - No business-specific content                         │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Final Prompt = Core Prompt + Business Prompt**
+
+#### Available Business Templates
+
+| Template | Architecture | Use Case |
+|----------|--------------|----------|
+| `competitive_intelligence` | research | Competitive analysis |
+| `market_research` | research | Market research |
+| `pr_code_review` | pipeline | PR code review |
+| `marketing_content` | critic_actor | Marketing content |
+| `it_support` | specialist_pool | IT support |
+| `tech_decision` | debate | Tech decisions |
+| `code_debugger` | reflexion | Code debugging |
+| `codebase_analysis` | mapreduce | Codebase analysis |
+
+#### Using Business Templates
+
+```python
+from claude_agent_framework import create_session
+
+# Method 1: Use a preset business template
+session = create_session(
+    "research",
+    business_template="competitive_intelligence"
+)
+
+# Method 2: Use template with variable substitution
+session = create_session(
+    "research",
+    business_template="competitive_intelligence",
+    template_vars={
+        "company_name": "Tesla Inc",
+        "industry": "Electric Vehicles"
+    }
+)
+
+# Method 3: Override specific agent prompts
+session = create_session(
+    "research",
+    business_template="competitive_intelligence",
+    prompt_overrides={
+        "researcher": "Focus specifically on EV battery technology..."
+    }
+)
+
+# Method 4: Fully custom prompts directory
+session = create_session(
+    "research",
+    prompts_dir="./my_custom_prompts"
+)
+```
+
+#### YAML Configuration
+
+```yaml
+# config.yaml
+architecture: research
+business_template: competitive_intelligence
+
+prompts:
+  template_vars:
+    company_name: "Tesla Inc"
+    industry: "Electric Vehicles"
+  agents:
+    researcher:
+      business_prompt: |
+        Focus on battery technology and EV market share.
+```
+
+#### Template Variables
+
+Business template prompts can include `${variable}` placeholders:
+
+```text
+# Business Context: Competitive Intelligence
+
+You are conducting competitive intelligence analysis for ${company_name}
+in the ${industry} sector.
+
+# Research Focus
+...
+```
+
+#### Prompt Priority Resolution
+
+When composing the final prompt, the system follows this priority order:
+
+1. `prompt_overrides["agent_name"]` - Code parameter override (highest)
+2. YAML `config.prompts.agents.xxx.business_prompt` - YAML inline
+3. `custom_prompts_dir/<agent>.txt` - Application custom directory
+4. `business_templates/<template>/<agent>.txt` - Business template
+5. Empty (use only architecture core prompt) - Default
+
 ---
 
 ## 8. State Management

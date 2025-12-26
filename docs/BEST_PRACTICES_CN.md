@@ -559,6 +559,123 @@ def load_prompt(filename: str) -> str:
     return prompt_path.read_text(encoding="utf-8").strip()
 ```
 
+### 7.4 业务模板系统
+
+框架提供了**分层提示词系统**，将架构层提示词与业务相关提示词分离：
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  应用层 (examples/production/)                          │
+│  - 选择业务模板或完全自定义                              │
+│  - 最终决定业务提示词                                   │
+└─────────────────────────────────────────────────────────┘
+                          ↓ 选择/覆盖
+┌─────────────────────────────────────────────────────────┐
+│  业务模板层 (business_templates/)                       │
+│  - 独立于架构                                           │
+│  - 按业务类型组织                                       │
+│  - 预置常用场景模板                                     │
+└─────────────────────────────────────────────────────────┘
+                          ↓ 组合
+┌─────────────────────────────────────────────────────────┐
+│  架构层 (architectures/)                                │
+│  - 核心 agent 角色、能力、约束                          │
+│  - 不包含业务逻辑                                       │
+└─────────────────────────────────────────────────────────┘
+```
+
+**最终提示词 = 核心提示词 + 业务提示词**
+
+#### 可用业务模板
+
+| 模板 | 适用架构 | 用途 |
+|------|----------|------|
+| `competitive_intelligence` | research | 竞品分析 |
+| `market_research` | research | 市场研究 |
+| `pr_code_review` | pipeline | PR 代码审查 |
+| `marketing_content` | critic_actor | 营销内容 |
+| `it_support` | specialist_pool | IT 支持 |
+| `tech_decision` | debate | 技术决策 |
+| `code_debugger` | reflexion | 代码调试 |
+| `codebase_analysis` | mapreduce | 代码库分析 |
+
+#### 使用业务模板
+
+```python
+from claude_agent_framework import create_session
+
+# 方式 1：使用预置业务模板
+session = create_session(
+    "research",
+    business_template="competitive_intelligence"
+)
+
+# 方式 2：使用模板 + 模板变量替换
+session = create_session(
+    "research",
+    business_template="competitive_intelligence",
+    template_vars={
+        "company_name": "特斯拉",
+        "industry": "电动汽车"
+    }
+)
+
+# 方式 3：覆盖特定 agent 提示词
+session = create_session(
+    "research",
+    business_template="competitive_intelligence",
+    prompt_overrides={
+        "researcher": "专注于电动汽车电池技术..."
+    }
+)
+
+# 方式 4：完全自定义提示词目录
+session = create_session(
+    "research",
+    prompts_dir="./my_custom_prompts"
+)
+```
+
+#### YAML 配置
+
+```yaml
+# config.yaml
+architecture: research
+business_template: competitive_intelligence
+
+prompts:
+  template_vars:
+    company_name: "特斯拉"
+    industry: "电动汽车"
+  agents:
+    researcher:
+      business_prompt: |
+        专注于电池技术和电动汽车市场份额。
+```
+
+#### 模板变量
+
+业务模板提示词可以包含 `${variable}` 占位符：
+
+```text
+# 业务背景：竞品分析
+
+你正在为 ${company_name} 在 ${industry} 行业进行竞品分析。
+
+# 研究重点
+...
+```
+
+#### 提示词优先级解析
+
+组合最终提示词时，系统按以下优先级顺序处理：
+
+1. `prompt_overrides["agent_name"]` - 代码参数覆盖（最高优先级）
+2. YAML `config.prompts.agents.xxx.business_prompt` - YAML 内联
+3. `custom_prompts_dir/<agent>.txt` - 应用自定义目录
+4. `business_templates/<template>/<agent>.txt` - 业务模板
+5. 空（仅使用架构核心提示词）- 默认
+
 ---
 
 ## 8. 状态管理

@@ -114,6 +114,11 @@ class BaseArchitecture(ABC):
         model_config: AgentModelConfig | None = None,
         prompts_dir: Path | None = None,
         files_dir: Path | None = None,
+        # New: Business template and prompt customization
+        business_template: str | None = None,
+        custom_prompts_dir: Path | str | None = None,
+        prompt_overrides: dict[str, str] | None = None,
+        template_vars: dict[str, Any] | None = None,
     ) -> None:
         """
         Initialize architecture.
@@ -122,12 +127,22 @@ class BaseArchitecture(ABC):
             model_config: Model configuration for agents
             prompts_dir: Directory containing prompt files
             files_dir: Working directory for file operations
+            business_template: Name of business template to use (optional)
+            custom_prompts_dir: Application-level custom prompts directory (optional)
+            prompt_overrides: Dict of agent_name -> override prompt content
+            template_vars: Dict of template variables for ${var} substitution
         """
         self.model_config = model_config or AgentModelConfig()
         self._prompts_dir = prompts_dir
         self._files_dir = files_dir
         self._plugins: list[ArchitecturePlugin] = []  # Legacy plugin support
         self._result: Any = None
+
+        # Business template and prompt customization
+        self._business_template = business_template
+        self._custom_prompts_dir = Path(custom_prompts_dir) if custom_prompts_dir else None
+        self._prompt_overrides = prompt_overrides or {}
+        self._template_vars = template_vars or {}
 
         # New plugin system
         from claude_agent_framework.plugins.base import PluginManager
@@ -157,6 +172,44 @@ class BaseArchitecture(ABC):
         from claude_agent_framework.config import FILES_DIR
 
         return FILES_DIR / self.name
+
+    @property
+    def business_template(self) -> str | None:
+        """Get the business template name."""
+        return self._business_template
+
+    @property
+    def custom_prompts_dir(self) -> Path | None:
+        """Get the custom prompts directory."""
+        return self._custom_prompts_dir
+
+    @property
+    def prompt_overrides(self) -> dict[str, str]:
+        """Get prompt overrides dict."""
+        return self._prompt_overrides
+
+    @property
+    def template_vars(self) -> dict[str, Any]:
+        """Get template variables dict."""
+        return self._template_vars
+
+    @property
+    def prompt_composer(self):
+        """
+        Get a PromptComposer configured for this architecture.
+
+        Returns:
+            PromptComposer instance for composing layered prompts
+        """
+        from claude_agent_framework.core.prompt import PromptComposer
+
+        return PromptComposer(
+            architecture_prompts_dir=self.prompts_dir,
+            business_template=self._business_template,
+            custom_prompts_dir=self._custom_prompts_dir,
+            prompt_overrides=self._prompt_overrides,
+            template_vars=self._template_vars,
+        )
 
     @abstractmethod
     async def execute(
@@ -192,8 +245,16 @@ class BaseArchitecture(ABC):
         """
         Get the lead agent's system prompt.
 
+        Uses PromptComposer to combine architecture core prompt with
+        business prompt if configured.
+
         Override in subclasses to customize.
         """
+        # Use PromptComposer if business template or customization is configured
+        if self._business_template or self._custom_prompts_dir or self._prompt_overrides:
+            return self.prompt_composer.compose("lead_agent")
+
+        # Fallback to legacy behavior for backward compatibility
         prompt_path = self.prompts_dir / "lead_agent.txt"
         if prompt_path.exists():
             return prompt_path.read_text(encoding="utf-8").strip()
@@ -381,6 +442,9 @@ class BaseArchitecture(ABC):
         """
         Convert agent configs to Claude SDK AgentDefinition format.
 
+        Uses PromptComposer to combine architecture core prompts with
+        business prompts if configured.
+
         Merges static agents from get_agents() with dynamically registered agents.
         Dynamic agents take precedence if names conflict.
 
@@ -389,17 +453,27 @@ class BaseArchitecture(ABC):
         """
         from claude_agent_sdk import AgentDefinition
 
+        # Get composer for layered prompt composition
+        composer = self.prompt_composer
+
         # Start with static agents
         agents = self.get_agents()
-        result = {
-            name: AgentDefinition(
+        result = {}
+
+        for name, config in agents.items():
+            # Use PromptComposer if business template or customization is configured
+            if self._business_template or self._custom_prompts_dir or self._prompt_overrides:
+                prompt = composer.compose(name)
+            else:
+                # Fallback to legacy behavior for backward compatibility
+                prompt = config.load_prompt(self.prompts_dir)
+
+            result[name] = AgentDefinition(
                 description=config.description,
                 tools=config.tools,
-                prompt=config.load_prompt(self.prompts_dir),
+                prompt=prompt,
                 model=self.model_config.get_model(name),
             )
-            for name, config in agents.items()
-        }
 
         # Merge dynamic agents (they override static ones with same name)
         dynamic_agents = self._dynamic_agents.get_all()

@@ -54,6 +54,11 @@ class ResearchArchitecture(BaseArchitecture):
         model_config: AgentModelConfig | None = None,
         prompts_dir: Path | None = None,
         files_dir: Path | None = None,
+        # Business template and prompt customization
+        business_template: str | None = None,
+        custom_prompts_dir: Path | str | None = None,
+        prompt_overrides: dict[str, str] | None = None,
+        template_vars: dict[str, Any] | None = None,
     ) -> None:
         """
         Initialize research architecture.
@@ -63,6 +68,10 @@ class ResearchArchitecture(BaseArchitecture):
             model_config: Model configuration (overridden by config if provided)
             prompts_dir: Custom prompts directory
             files_dir: Custom files directory
+            business_template: Name of business template to use (optional)
+            custom_prompts_dir: Application-level custom prompts directory (optional)
+            prompt_overrides: Dict of agent_name -> override prompt content
+            template_vars: Dict of template variables for ${var} substitution
         """
         self.research_config = config or ResearchConfig()
 
@@ -77,6 +86,10 @@ class ResearchArchitecture(BaseArchitecture):
             model_config=model_config,
             prompts_dir=prompts_dir,
             files_dir=files_dir,
+            business_template=business_template,
+            custom_prompts_dir=custom_prompts_dir,
+            prompt_overrides=prompt_overrides,
+            template_vars=template_vars,
         )
 
     def get_agents(self) -> dict[str, AgentDefinitionConfig]:

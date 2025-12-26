@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from claude_agent_framework.core.types import ArchitectureType, ModelTypeStr
 
@@ -37,6 +37,11 @@ def create_session(
     log_dir: Path | str | None = None,
     files_dir: Path | str | None = None,
     auto_setup: bool = True,
+    # New: Business template and prompt customization
+    business_template: str | None = None,
+    prompts_dir: Path | str | None = None,
+    prompt_overrides: dict[str, str] | None = None,
+    template_vars: dict[str, Any] | None = None,
 ) -> AgentSession:
     """
     Create a ready-to-use agent session with minimal configuration.
@@ -61,6 +66,15 @@ def create_session(
         log_dir: Custom directory for logs. Default: framework logs/
         files_dir: Custom directory for output files. Default: framework files/
         auto_setup: Automatically create directories. Default: True
+        business_template: Name of business template to use (optional).
+            Available templates can be listed with:
+            `from claude_agent_framework.business_templates import list_templates`
+        prompts_dir: Application-level custom prompts directory (optional).
+            Files in this directory override business template prompts.
+        prompt_overrides: Dict of agent_name -> override prompt content.
+            Highest priority, overrides all other prompt sources.
+        template_vars: Dict of template variables for ${var} substitution
+            in prompts.
 
     Returns:
         AgentSession ready for use with run() or query() methods
@@ -76,8 +90,19 @@ def create_session(
         >>> async for msg in session.run("Analyze AI market trends"):
         ...     print(msg)
         >>>
-        >>> # With options
-        >>> session = create_session("pipeline", model="sonnet", verbose=True)
+        >>> # With business template
+        >>> session = create_session(
+        ...     "research",
+        ...     business_template="competitive_intelligence",
+        ...     template_vars={"company_name": "Tesla Inc"}
+        ... )
+        >>>
+        >>> # With custom prompts
+        >>> session = create_session(
+        ...     "research",
+        ...     prompts_dir="./my_prompts",
+        ...     prompt_overrides={"researcher": "Custom researcher instructions..."}
+        ... )
     """
     # Import here to avoid circular imports
     from claude_agent_framework.config import FrameworkConfig, validate_api_key
@@ -115,21 +140,40 @@ def create_session(
     # 4. Create model configuration
     model_config = AgentModelConfig(default=model)
 
-    # 5. Create architecture instance
-    arch = arch_class(model_config=model_config)
+    # 5. Validate business template if specified
+    if business_template:
+        from claude_agent_framework.business_templates import template_exists
 
-    # 6. Create framework config
+        if not template_exists(business_template):
+            from claude_agent_framework.business_templates import list_templates
+
+            available = list_templates()
+            raise InitializationError(
+                f"Business template '{business_template}' not found.\n"
+                f"Available templates: {', '.join(available) if available else 'none'}"
+            )
+
+    # 6. Create architecture instance with new prompt customization options
+    arch = arch_class(
+        model_config=model_config,
+        business_template=business_template,
+        custom_prompts_dir=Path(prompts_dir) if prompts_dir else None,
+        prompt_overrides=prompt_overrides,
+        template_vars=template_vars,
+    )
+
+    # 7. Create framework config
     config = FrameworkConfig(lead_agent_model=model)
     if log_dir:
         config.logs_dir = Path(log_dir)
     if files_dir:
         config.files_dir = Path(files_dir)
 
-    # 7. Setup directories if requested
+    # 8. Setup directories if requested
     if auto_setup:
         config.ensure_directories()
 
-    # 8. Create and return session
+    # 9. Create and return session
     session = AgentSession(arch, config)
 
     return session

@@ -1,0 +1,26 @@
+# Business Template: Market Research
+
+name: market_research
+description: Market research and industry analysis
+applicable_architectures:
+  - research
+  - pipeline
+version: "1.0.0"
+
+# Agent prompts provided
+agents:
+  - researcher
+  - data_analyst
+  - report_writer
+  - lead_agent
+
+# Template variables (examples)
+template_variables:
+  target_market: "Target Market"
+  industry: "Technology"
+  geography: "Global"
+  research_scope:
+    - "Market Size"
+    - "Growth Trends"
+    - "Key Players"
+    - "Consumer Behavior"
