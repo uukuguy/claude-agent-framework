@@ -333,7 +333,9 @@ Provide the variant content:
         session = create_session("research", model=models.get("actor", "sonnet"), verbose=False)
         variant_text = []
         async for msg in session.run(prompt):
-            variant_text.append(msg)
+            content = extract_message_content(msg)
+            if content:
+                variant_text.append(content)
         await session.teardown()
 
         variants.append({"variant": i + 1, "angle": angle, "content": "\n".join(variant_text)})
