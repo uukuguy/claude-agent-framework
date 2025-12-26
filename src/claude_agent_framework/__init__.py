@@ -24,6 +24,9 @@ CLI Usage:
     python -m claude_agent_framework.cli --list
 """
 
+# Import architectures to trigger registration (MUST be first)
+import claude_agent_framework.architectures  # noqa: F401
+
 # Primary API - simplified initialization (recommended)
 from claude_agent_framework.config import (
     AgentConfig,
