@@ -64,7 +64,9 @@ run:
 
 # Run by architecture
 run-research:
-	uv run python -m claude_agent_framework.cli --arch research -i
+ 	# uv run python -m claude_agent_framework.cli --arch research -i
+	claude-agent run --arch research -bt competitive_intelligence \
+    -tv company_name="TechCorp" -tv industry="Cloud Computing"
 
 run-pipeline:
 	uv run python -m claude_agent_framework.cli --arch pipeline -i
@@ -76,7 +78,9 @@ run-specialist:
 	uv run python -m claude_agent_framework.cli --arch specialist_pool -i
 
 run-debate:
-	uv run python -m claude_agent_framework.cli --arch debate -i
+	# uv run python -m claude_agent_framework.cli --arch debate -i
+	claude-agent run --arch debate -bt tech_decision \
+	-tv decision_topic="Database Selection" -q "PostgreSQL vs MongoDB?"
 
 run-reflexion:
 	uv run python -m claude_agent_framework.cli --arch reflexion -i

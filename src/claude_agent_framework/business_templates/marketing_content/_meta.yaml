@@ -6,6 +6,9 @@ applicable_architectures:
   - critic_actor
 version: "1.0.0"
 
+# Default query when no -q parameter is provided
+default_query: "Create ${content_type} for ${brand_name} targeting ${target_audience}"
+
 # Agent prompts provided
 agents:
   - content_creator

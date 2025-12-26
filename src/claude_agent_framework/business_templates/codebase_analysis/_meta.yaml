@@ -6,6 +6,9 @@ applicable_architectures:
   - mapreduce
 version: "1.0.0"
 
+# Default query when no -q parameter is provided
+default_query: "Analyze the ${codebase} codebase for code quality, security, and maintainability"
+
 # Agent prompts provided
 agents:
   - mapper

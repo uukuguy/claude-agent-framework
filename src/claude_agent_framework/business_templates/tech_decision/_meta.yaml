@@ -6,6 +6,9 @@ applicable_architectures:
   - debate
 version: "1.0.0"
 
+# Default query when no -q parameter is provided
+default_query: "Evaluate ${decision_topic} for ${organization}"
+
 # Agent prompts provided
 agents:
   - pro_advocate

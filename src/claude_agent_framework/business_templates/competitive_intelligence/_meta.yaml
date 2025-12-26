@@ -7,6 +7,9 @@ applicable_architectures:
   - pipeline
 version: "1.0.0"
 
+# Default query when no -q parameter is provided
+default_query: "Perform competitive intelligence analysis for ${company_name} in the ${industry} sector"
+
 # Agent prompts provided
 agents:
   - researcher

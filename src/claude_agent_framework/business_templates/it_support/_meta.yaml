@@ -6,6 +6,9 @@ applicable_architectures:
   - specialist_pool
 version: "1.0.0"
 
+# Default query when no -q parameter is provided
+default_query: "Process IT support request for ${organization}"
+
 # Agent prompts provided
 agents:
   - router

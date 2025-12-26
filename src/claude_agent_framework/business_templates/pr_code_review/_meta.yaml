@@ -6,6 +6,9 @@ applicable_architectures:
   - pipeline
 version: "1.0.0"
 
+# Default query when no -q parameter is provided
+default_query: "Review pull request ${pr_number} in ${repository}"
+
 # Agent prompts provided
 agents:
   - code_reviewer

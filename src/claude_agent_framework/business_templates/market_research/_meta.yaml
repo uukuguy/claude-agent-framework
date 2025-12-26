@@ -7,6 +7,9 @@ applicable_architectures:
   - pipeline
 version: "1.0.0"
 
+# Default query when no -q parameter is provided
+default_query: "Conduct market research on ${target_market} in the ${industry} industry"
+
 # Agent prompts provided
 agents:
   - researcher

@@ -64,6 +64,15 @@ async def run_architecture(
     from claude_agent_framework import create_session
     from claude_agent_framework.session import InitializationError
 
+    # If no query provided and using business template, try to get default query
+    if not query and business_template and not interactive:
+        from claude_agent_framework.business_templates import get_template_default_query
+
+        default_query = get_template_default_query(business_template, template_vars)
+        if default_query:
+            query = default_query
+            print(f"Using default query from template: {query}")
+
     try:
         # Use create_session() to create session
         session = create_session(

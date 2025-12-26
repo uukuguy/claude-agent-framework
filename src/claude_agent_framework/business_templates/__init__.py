@@ -207,6 +207,31 @@ def template_exists(template_name: str) -> bool:
     return template_path.is_dir()
 
 
+def get_template_default_query(
+    template_name: str,
+    template_vars: dict[str, Any] | None = None,
+) -> str | None:
+    """
+    Get the default query for a business template with variable substitution.
+
+    Args:
+        template_name: Name of the business template
+        template_vars: Dict of template variables for ${var} substitution
+
+    Returns:
+        Default query string with variables substituted, or None if not defined
+    """
+    metadata = get_template_metadata(template_name)
+    default_query = metadata.get("default_query")
+
+    if default_query and template_vars:
+        # Apply variable substitution
+        for key, value in template_vars.items():
+            default_query = default_query.replace(f"${{{key}}}", str(value))
+
+    return default_query
+
+
 __all__ = [
     "TEMPLATES_DIR",
     "TemplateNotFoundError",
@@ -218,4 +243,5 @@ __all__ = [
     "get_template_metadata",
     "list_template_agents",
     "template_exists",
+    "get_template_default_query",
 ]
