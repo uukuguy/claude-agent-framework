@@ -46,6 +46,8 @@ async def run_architecture(
     model: str = "haiku",
     interactive: bool = False,
     verbose: bool = False,
+    business_template: str | None = None,
+    template_vars: dict | None = None,
 ) -> None:
     """
     Run the specified architecture using create_session() internally.
@@ -56,6 +58,8 @@ async def run_architecture(
         model: Model to use
         interactive: Force interactive mode
         verbose: Enable verbose logging
+        business_template: Business template name
+        template_vars: Template variables for prompt customization
     """
     from claude_agent_framework import create_session
     from claude_agent_framework.session import InitializationError
@@ -66,6 +70,8 @@ async def run_architecture(
             architecture=arch_name,  # type: ignore[arg-type]
             model=model,  # type: ignore[arg-type]
             verbose=verbose,
+            business_template=business_template,
+            template_vars=template_vars,
         )
     except InitializationError as e:
         print(f"Error: {e}")
@@ -261,6 +267,14 @@ Examples:
 
   # Run pipeline architecture interactively
   claude-agent run --arch pipeline -i
+
+  # Run with business template
+  claude-agent run --arch research -bt competitive_intelligence \\
+    -tv company_name="TechCorp" -tv industry="Cloud Computing"
+
+  # Run debate architecture with tech decision template
+  claude-agent run --arch debate -bt tech_decision \\
+    -tv decision_topic="Database Selection" -q "Should we use PostgreSQL or MongoDB?"
 """,
     )
     run_parser.add_argument(
@@ -301,6 +315,19 @@ Examples:
         "--verbose",
         action="store_true",
         help="Enable verbose logging",
+    )
+    run_parser.add_argument(
+        "-bt",
+        "--business-template",
+        type=str,
+        help="Business template to use (e.g., competitive_intelligence, pr_code_review)",
+    )
+    run_parser.add_argument(
+        "-tv",
+        "--template-var",
+        action="append",
+        metavar="KEY=VALUE",
+        help="Template variable in key=value format (can be used multiple times)",
     )
 
     # Metrics command
@@ -401,6 +428,19 @@ Examples:
         action="store_true",
         help=argparse.SUPPRESS,
     )
+    parser.add_argument(
+        "-bt",
+        "--business-template",
+        type=str,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "-tv",
+        "--template-var",
+        action="append",
+        metavar="KEY=VALUE",
+        help=argparse.SUPPRESS,
+    )
 
     args = parser.parse_args()
 
@@ -420,6 +460,17 @@ Examples:
         if args.list:
             print_architectures()
         else:
+            # Parse template variables from key=value format
+            template_vars = None
+            if hasattr(args, "template_var") and args.template_var:
+                template_vars = {}
+                for var in args.template_var:
+                    if "=" in var:
+                        key, value = var.split("=", 1)
+                        template_vars[key.strip()] = value.strip()
+                    else:
+                        print(f"Warning: Invalid template variable format: {var} (expected key=value)")
+
             asyncio.run(
                 run_architecture(
                     arch_name=args.arch,
@@ -427,6 +478,8 @@ Examples:
                     model=args.model,
                     interactive=args.interactive,
                     verbose=args.verbose if hasattr(args, "verbose") else False,
+                    business_template=getattr(args, "business_template", None),
+                    template_vars=template_vars,
                 )
             )
     else:
