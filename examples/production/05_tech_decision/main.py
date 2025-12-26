@@ -74,9 +74,21 @@ async def run_tech_decision(
         advanced,
     )
 
-    # Initialize debate session
+    # Initialize debate session with business template
     try:
-        session = create_session("debate", model=models.get("lead", "sonnet"), verbose=False)
+        session = create_session(
+            "debate",
+            model=models.get("lead", "sonnet"),
+            business_template=config.get("business_template", "tech_decision"),
+            template_vars={
+                "decision_topic": config.get("decision_topic", "Technology Decision"),
+                "organization": config.get("organization", "Organization"),
+                "evaluation_criteria": config.get(
+                    "evaluation_criteria", ["Technical Fit", "Cost", "Risk"]
+                ),
+            },
+            verbose=False,
+        )
     except Exception as e:
         raise ExecutionError(f"Failed to initialize debate session: {e}")
 
@@ -144,6 +156,10 @@ def _build_debate_prompt(
 ) -> str:
     """Build comprehensive debate prompt.
 
+    Note: Role instructions and workflow guidance are provided by the
+    business template (tech_decision). This function only generates
+    the user task description.
+
     Args:
         decision_question: The decision to evaluate
         context: Decision context (options, requirements, constraints)
@@ -175,15 +191,6 @@ def _build_debate_prompt(
 
     # Build debate structure
     rounds = debate_config.get("rounds", 3)
-    round_structure = debate_config.get("round_structure", [])
-    structure_desc = []
-    for round_info in round_structure:
-        round_num = round_info.get("round", 0)
-        name = round_info.get("name", "")
-        focus = round_info.get("focus", "")
-        structure_desc.append(f"Round {round_num} - {name}: {focus}")
-
-    structure_text = "\n".join(structure_desc)
 
     prompt = f"""# Tech Decision Debate
 
@@ -210,137 +217,16 @@ Timeline: {constraints.get("timeline", "Not specified")}
 Team Size: {constraints.get("team_size", "Not specified")}
 Existing Tech Stack: {constraints.get("tech_stack", "Not specified")}
 
-## Debate Format
+## Debate Configuration
 
-You are conducting a structured debate with {rounds} rounds to evaluate this technical decision.
+Rounds: {rounds}
+Format: {debate_config.get("format", "oxford_style")}
 
-### Participants
-
-**Proponent ({participants_config["proponent"]["name"]})**:
-Role: {participants_config["proponent"]["role"]}
-Focus: {", ".join(participants_config["proponent"]["focus_areas"])}
-
-**Opponent ({participants_config["opponent"]["name"]})**:
-Role: {participants_config["opponent"]["role"]}
-Focus: {", ".join(participants_config["opponent"]["focus_areas"])}
-
-**Judge ({participants_config["judge"]["name"]})**:
-Role: {participants_config["judge"]["role"]}
-Expertise: {", ".join(participants_config["judge"]["expertise"])}
-
-### Debate Structure
-
-{structure_text}
-
-### Evaluation Criteria (Weighted)
+## Evaluation Criteria (Weighted)
 
 {criteria_text}
 
-## Debate Rules
-
-{
-        "- **Fact-Checking Enabled**: All claims must be verifiable"
-        if advanced.get("enable_fact_checking")
-        else ""
-    }
-{
-        "- **Evidence Required**: Arguments must cite sources and data"
-        if advanced.get("require_evidence")
-        else ""
-    }
-{
-        "- **Structured Scoring**: Use rubric-based evaluation"
-        if advanced.get("structured_scoring")
-        else ""
-    }
-
-## Output Format
-
-Structure your debate as follows:
-
-### Round 1: Opening Arguments
-
-**[Proponent]**
-[Opening argument for the proposed solution...]
-
-**[Opponent]**
-[Counter-argument and alternative proposals...]
-
-### Round 2: Deep Analysis
-
-**[Proponent]**
-[Detailed analysis addressing evaluation criteria with evidence...]
-
-**[Opponent]**
-[Challenge key points and present data for alternatives...]
-
-### Round 3: Rebuttals
-
-**[Proponent]**
-[Respond to opponent's challenges...]
-
-**[Opponent]**
-[Final counter-arguments...]
-
-### Evaluation Scorecard
-
-For each criterion, provide scores (0-100) for each option:
-
-{
-        chr(10).join(
-            f'''**{criterion.replace('_', ' ').title()} ({config['weight']}%)**
-{chr(10).join(f"- {opt}: [score]/100 - [brief justification]" for opt in options)}
-'''
-            for criterion, config in evaluation_criteria.items()
-        )
-    }
-
-**Overall Weighted Score**
-{chr(10).join(f"- {opt}: [calculated score]/100" for opt in options)}
-
-### Final Recommendation
-
-**[Judge's Decision]**
-
-**Recommended Option**: [Selected option]
-
-**Justification**: [Comprehensive reasoning based on debate evidence...]
-
-**Key Strengths**:
-1. [Strength 1]
-2. [Strength 2]
-...
-
-**Acknowledged Risks**:
-1. [Risk 1 with mitigation strategy]
-2. [Risk 2 with mitigation strategy]
-...
-
-**Implementation Roadmap**:
-
-Phase 1 (Immediate - 0-30 days):
-- [Action item]
-- [Action item]
-
-Phase 2 (Short-term - 1-3 months):
-- [Action item]
-- [Action item]
-
-Phase 3 (Long-term - 3-12 months):
-- [Action item]
-- [Action item]
-
-**Success Metrics**:
-- [Metric 1]
-- [Metric 2]
-...
-
-**Dissenting Opinion** (if applicable):
-[Any minority view or reservations]
-
----
-
-Begin the debate now.
+Conduct a structured debate and provide a final recommendation with implementation roadmap.
 """
 
     return prompt

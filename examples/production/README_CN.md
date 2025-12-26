@@ -59,6 +59,56 @@ python main.py
 - **validate_config** - 配置验证
 - **ConfigurationError / ExecutionError** - 自定义异常
 
+## 业务模板
+
+所有生产级示例都使用**业务模板**系统进行统一的提示管理：
+
+### 工作原理
+
+1. **config.yaml** - 指定业务模板和模板变量：
+   ```yaml
+   architecture: research
+
+   # 业务模板配置
+   business_template: competitive_intelligence
+
+   # 提示定制的模板变量
+   company_name: "我们的公司"
+   industry: "云计算"
+   ```
+
+2. **main.py** - 通过 `create_session()` 使用业务模板：
+   ```python
+   session = create_session(
+       "research",
+       model="sonnet",
+       business_template=config.get("business_template", "competitive_intelligence"),
+       template_vars={
+           "company_name": config.get("company_name", "我们的公司"),
+           "industry": config.get("industry", "Technology"),
+       },
+   )
+   ```
+
+### 可用业务模板
+
+| 模板 | 架构 | 示例 |
+|------|------|------|
+| `competitive_intelligence` | research | 01_competitive_intelligence |
+| `pr_code_review` | pipeline | 02_pr_code_review |
+| `marketing_content` | critic_actor | 03_marketing_content |
+| `it_support` | specialist_pool | 04_it_support |
+| `tech_decision` | debate | 05_tech_decision |
+| `code_debugger` | reflexion | 06_code_debugger |
+| `codebase_analysis` | mapreduce | 07_codebase_analysis |
+
+### 优势
+
+- **关注点分离**：业务提示在模板中，任务逻辑在 main.py 中
+- **可复用性**：同一模板可被多个应用使用
+- **可维护性**：修改提示无需更改代码
+- **动态配置**：模板变量支持运行时定制
+
 ## 架构对比
 
 | 架构 | 并行度 | 迭代特性 | 最佳场景 |

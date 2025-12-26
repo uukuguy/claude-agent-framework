@@ -56,10 +56,15 @@ async def run_competitive_intelligence(config: dict) -> dict:
             f"Starting competitive intelligence analysis for {len(competitors)} competitors"
         )
 
-        # Initialize session with Research architecture
+        # Initialize session with Research architecture and business template
         session = create_session(
             "research",
             model=models.get("lead", "sonnet"),
+            business_template=config.get("business_template", "competitive_intelligence"),
+            template_vars={
+                "company_name": config.get("company_name", "Our Company"),
+                "industry": config.get("industry", "Technology"),
+            },
             verbose=False,
         )
 
@@ -97,6 +102,10 @@ def _build_analysis_prompt(competitors: list[dict], dimensions: list[str]) -> st
     """
     Build analysis prompt for the research architecture.
 
+    Note: Role instructions and workflow guidance are provided by the
+    business template (competitive_intelligence). This function only
+    generates the user task description.
+
     Args:
         competitors: List of competitor configurations
         dimensions: Analysis dimensions
@@ -111,27 +120,14 @@ def _build_analysis_prompt(competitors: list[dict], dimensions: list[str]) -> st
 
     dimension_list = "\n".join(f"- {dim}" for dim in dimensions)
 
-    prompt = f"""Conduct a comprehensive competitive intelligence analysis of the following competitors:
+    prompt = f"""Analyze the following competitors:
 
 {competitor_list}
 
-Analyze each competitor across these dimensions:
+Analysis dimensions:
 {dimension_list}
 
-For each competitor:
-1. Research their latest offerings and updates
-2. Analyze their strengths and weaknesses
-3. Identify market positioning
-4. Compare pricing strategies
-5. Assess customer satisfaction
-
-Provide a detailed comparative analysis and generate insights about:
-- Market trends
-- Competitive advantages
-- Potential opportunities and threats
-- Strategic recommendations
-
-Use WebSearch to gather current information and ensure all data is up-to-date.
+Deliver a comprehensive competitive intelligence report with comparative analysis and strategic recommendations.
 """
 
     return prompt

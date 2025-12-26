@@ -59,6 +59,56 @@ The `common/` directory provides shared utilities for all examples:
 - **validate_config** - Configuration validation
 - **ConfigurationError / ExecutionError** - Custom exceptions
 
+## Business Templates
+
+All production examples use the **Business Template** system for consistent prompt management:
+
+### How It Works
+
+1. **config.yaml** - Specifies business template and template variables:
+   ```yaml
+   architecture: research
+
+   # Business template configuration
+   business_template: competitive_intelligence
+
+   # Template variables for prompt customization
+   company_name: "Our Company"
+   industry: "Cloud Computing"
+   ```
+
+2. **main.py** - Uses business template via `create_session()`:
+   ```python
+   session = create_session(
+       "research",
+       model="sonnet",
+       business_template=config.get("business_template", "competitive_intelligence"),
+       template_vars={
+           "company_name": config.get("company_name", "Our Company"),
+           "industry": config.get("industry", "Technology"),
+       },
+   )
+   ```
+
+### Available Business Templates
+
+| Template | Architecture | Example |
+|----------|--------------|---------|
+| `competitive_intelligence` | research | 01_competitive_intelligence |
+| `pr_code_review` | pipeline | 02_pr_code_review |
+| `marketing_content` | critic_actor | 03_marketing_content |
+| `it_support` | specialist_pool | 04_it_support |
+| `tech_decision` | debate | 05_tech_decision |
+| `code_debugger` | reflexion | 06_code_debugger |
+| `codebase_analysis` | mapreduce | 07_codebase_analysis |
+
+### Benefits
+
+- **Separation of Concerns**: Business prompts in templates, task logic in main.py
+- **Reusability**: Same template usable across multiple applications
+- **Maintainability**: Modify prompts without changing code
+- **Dynamic Configuration**: Template variables enable runtime customization
+
 ## Architecture Comparison
 
 | Architecture | Parallelism | Iteration | Best For |

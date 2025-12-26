@@ -1,5 +1,17 @@
 architecture: mapreduce
 
+# Business template configuration
+business_template: codebase_analysis
+
+# Template variables for prompt customization
+codebase: "Project Codebase"
+analysis_focus:
+  - "Code Quality"
+  - "Security"
+  - "Performance"
+  - "Maintainability"
+file_patterns: "**/*.py,**/*.js,**/*.ts"
+
 analysis:
   max_parallel_mappers: 10       # Maximum parallel analysis tasks
   chunk_size: 50                 # Files per chunk (auto-adjust based on total)

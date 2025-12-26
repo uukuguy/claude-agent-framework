@@ -3,6 +3,14 @@
 
 architecture: reflexion
 
+# Business template configuration
+business_template: code_debugger
+
+# Template variables for prompt customization
+codebase: "Application Codebase"
+language: "Python"
+bug_description: ""
+
 # Debugging configuration
 debugging:
   max_iterations: 5           # Maximum debugging attempts

@@ -3,6 +3,15 @@
 
 architecture: critic_actor
 
+# Business template configuration
+business_template: marketing_content
+
+# Template variables for prompt customization
+brand_name: "TechCorp"
+target_audience: "Software engineering teams and DevOps professionals"
+content_type: "blog_post"
+brand_voice: "professional yet approachable"
+
 # Content configuration
 content:
   # Content type

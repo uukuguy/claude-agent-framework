@@ -76,8 +76,18 @@ async def run_it_support(config: dict, issue_title: str, issue_description: str)
         response_template,
     )
 
-    # Run specialist pool architecture
-    session = create_session("specialist_pool", model=models.get("lead", "sonnet"), verbose=False)
+    # Run specialist pool architecture with business template
+    session = create_session(
+        "specialist_pool",
+        model=models.get("lead", "sonnet"),
+        business_template=config.get("business_template", "it_support"),
+        template_vars={
+            "organization": config.get("organization", "Organization"),
+            "support_level": config.get("support_level", "Tier 1"),
+            "sla_priority": config.get("sla_priority", "standard"),
+        },
+        verbose=False,
+    )
 
     results = []
     async for msg in session.run(prompt):
@@ -230,6 +240,10 @@ def _build_specialist_pool_prompt(
 ) -> str:
     """Build specialist pool prompt for issue resolution.
 
+    Note: Role instructions and workflow guidance are provided by the
+    business template (it_support). This function only generates
+    the user task description.
+
     Args:
         title: Issue title
         description: Issue description
@@ -259,7 +273,7 @@ def _build_specialist_pool_prompt(
 
     requirements_text = "\n".join(f"- {req}" for req in requirements)
 
-    prompt = f"""Resolve an IT support issue using specialist expertise.
+    prompt = f"""Resolve an IT support issue.
 
 ## Issue Details
 
@@ -271,58 +285,12 @@ def _build_specialist_pool_prompt(
 **Urgency**: {urgency.upper()} (SLA: {sla_hours} hours)
 
 ## Available Specialists
-
 {specialist_list}
 
-## Instructions
-
-Each specialist should analyze the issue from their domain perspective and provide:
-
+## Required Response Components
 {requirements_text}
 
-**Output Format**:
-
-For each specialist, provide:
-
-```
-### [Specialist Name]
-
-**Analysis**:
-[Domain-specific analysis of the issue]
-
-**Root Cause**:
-[Likely root cause from this specialist's perspective]
-
-**Resolution Steps**:
-1. [Specific actionable step]
-2. [Another step]
-...
-
-**Prevention**:
-[Recommendations to prevent recurrence]
-
-**Confidence**: [High/Medium/Low]
-```
-
-After all specialists have provided input, provide:
-
-```
-### Consolidated Solution
-
-**Primary Root Cause**:
-[Most likely root cause based on all specialist input]
-
-**Recommended Action Plan**:
-1. [Immediate action]
-2. [Follow-up action]
-...
-
-**Expected Resolution Time**: [Estimate]
-
-**Risk Assessment**: [Any risks to be aware of]
-```
-
-Begin the specialist analysis now.
+Provide specialist analysis and a consolidated solution with actionable steps.
 """
 
     return prompt

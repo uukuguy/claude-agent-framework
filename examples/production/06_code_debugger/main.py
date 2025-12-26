@@ -110,9 +110,19 @@ async def run_code_debugger(
         advanced,
     )
 
-    # Initialize reflexion session
+    # Initialize reflexion session with business template
     try:
-        session = create_session("reflexion", model=models.get("lead", "sonnet"), verbose=False)
+        session = create_session(
+            "reflexion",
+            model=models.get("lead", "sonnet"),
+            business_template=config.get("business_template", "code_debugger"),
+            template_vars={
+                "codebase": config.get("codebase", "Application Codebase"),
+                "language": config.get("language", "Python"),
+                "bug_description": bug_description,
+            },
+            verbose=False,
+        )
     except Exception as e:
         raise ExecutionError(f"Failed to initialize reflexion session: {e}")
 
@@ -180,6 +190,10 @@ def _build_reflexion_prompt(
 ) -> str:
     """Build reflexion debugging prompt.
 
+    Note: Role instructions and workflow guidance are provided by the
+    business template (code_debugger). This function only generates
+    the user task description.
+
     Args:
         bug_description: Bug description
         context: Bug context (error message, file path, etc.)
@@ -191,7 +205,7 @@ def _build_reflexion_prompt(
         advanced: Advanced options
 
     Returns:
-        str: Complete reflexion prompt
+        str: User task description for debugging
     """
     # Extract context
     error_message = context.get("error_message", "")
@@ -220,7 +234,17 @@ def _build_reflexion_prompt(
 
     categories_text = "\n".join(categories_desc)
 
-    prompt = f"""# Code Debugging Session - Reflexion Architecture
+    # Build advanced options
+    advanced_options = []
+    if advanced.get("enable_static_analysis"):
+        advanced_options.append("- Static analysis enabled")
+    if advanced.get("enable_llm_debugging"):
+        advanced_options.append("- LLM debugging enabled")
+    if advanced.get("verbose_logging"):
+        advanced_options.append("- Verbose logging enabled")
+    advanced_text = "\n".join(advanced_options) if advanced_options else "None"
+
+    prompt = f"""# Code Debugging Task
 
 ## Bug Description
 
@@ -247,26 +271,10 @@ def _build_reflexion_prompt(
 **Reproduction Steps**:
 {chr(10).join(f"{i + 1}. {step}" for i, step in enumerate(reproduction_steps)) if reproduction_steps else "Not provided"}
 
-## Reflexion Loop
-
-You are using the Reflexion architecture to debug this issue through an execute-reflect-improve loop.
+## Debugging Configuration
 
 Maximum iterations: {debugging_config.get("max_iterations", 5)}
 Success threshold: {debugging_config.get("success_threshold", 0.9)}
-
-### Roles
-
-**Executor ({reflexion_config["executor"]["name"]})**:
-{reflexion_config["executor"]["role"]}
-Available tools: {", ".join(reflexion_config["executor"]["tools"])}
-
-**Reflector ({reflexion_config["reflector"]["name"]})**:
-{reflexion_config["reflector"]["role"]}
-Focus areas:
-{chr(10).join(f"- {area}" for area in reflexion_config["reflector"]["focus_areas"])}
-
-**Improver ({reflexion_config["improver"]["name"]})**:
-{reflexion_config["improver"]["role"]}
 
 ## Available Debugging Strategies
 
@@ -278,142 +286,9 @@ Focus areas:
 
 ## Advanced Options
 
-{"- **Static Analysis Enabled**: Run linters and type checkers" if advanced.get("enable_static_analysis") else ""}
-{"- **LLM Debugging Enabled**: Use LLM to analyze code patterns" if advanced.get("enable_llm_debugging") else ""}
-{"- **Verbose Logging**: Detailed debugging logs" if advanced.get("verbose_logging") else ""}
+{advanced_text}
 
-## Output Format
-
-Structure your debugging as an iterative reflexion loop:
-
-### Iteration 1: Initial Analysis
-
-**[Executor]** Execute debugging strategy
-
-Strategy: error_trace_analysis
-Actions taken:
-- Analyzed error message and stack trace
-- Identified error location: {file_path if file_path else "[file]"}:[line]
-- Reviewed surrounding code
-
-Evidence collected:
-- [Key finding 1]
-- [Key finding 2]
-
-Hypothesis: [What you think the issue is]
-
-**[Reflector]** Reflect on attempt
-
-What worked:
-- [Successful aspect]
-
-What didn't work:
-- [Failed aspect]
-
-Why it failed:
-- [Analysis of failure]
-
-New information discovered:
-- [New insight]
-
-**[Improver]** Improve strategy
-
-Adjusted approach:
-- [How to modify strategy]
-
-Next strategy: [strategy name]
-Rationale: [Why this strategy now]
-
----
-
-### Iteration 2: [Continue pattern...]
-
-**[Executor]** Execute debugging strategy
-...
-
-**[Reflector]** Reflect on attempt
-...
-
-**[Improver]** Improve strategy
-...
-
----
-
-### Final Analysis
-
-After {debugging_config.get("max_iterations", 5)} iterations or upon finding root cause:
-
-**Root Cause Identified**
-
-Category: [Code Logic / Data Issues / Dependencies / Environment / Concurrency]
-
-Description: [Detailed explanation of the root cause]
-
-Why it causes the bug: [Mechanism explanation]
-
-Confidence: [High / Medium / Low]
-
-Evidence:
-1. [Evidence point 1]
-2. [Evidence point 2]
-3. [Evidence point 3]
-
-**Proposed Fix**
-
-```python
-# File: {file_path if file_path else "[file_path]"}
-
-# Before (problematic code):
-[original code]
-
-# After (fixed code):
-[corrected code]
-
-# Explanation:
-[Why this fixes the issue]
-```
-
-Alternative approaches considered:
-1. [Alternative 1] - Rejected because [reason]
-2. [Alternative 2] - Could work but [tradeoff]
-
-**Fix Validation**
-
-Test case to validate fix:
-```python
-def test_bug_fix():
-    # [Test code that would fail before fix, pass after]
-    ...
-    assert [expected result]
-```
-
-Regression risk: [Low / Medium / High]
-Mitigation: [How to prevent regressions]
-
-**Failed Attempts Summary**
-
-Iteration 1: Tried [strategy] - Failed because [reason]
-Iteration 2: Tried [strategy] - Failed because [reason]
-...
-
-Key learnings:
-1. [Learning 1]
-2. [Learning 2]
-
-**Prevention Recommendations**
-
-To prevent similar bugs:
-1. [Recommendation 1 - e.g., Add type hints]
-2. [Recommendation 2 - e.g., Add input validation]
-3. [Recommendation 3 - e.g., Improve test coverage]
-
-Code quality improvements:
-- [Improvement 1]
-- [Improvement 2]
-
----
-
-Begin debugging now. Use the reflexion loop to systematically find the root cause.
+Debug this issue using the reflexion loop to systematically find and fix the root cause.
 """
 
     return prompt

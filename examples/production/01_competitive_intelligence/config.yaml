@@ -3,6 +3,13 @@
 # Architecture to use
 architecture: research
 
+# Business template configuration
+business_template: competitive_intelligence
+
+# Template variables for prompt customization
+company_name: "Our Company"
+industry: "Cloud Computing"
+
 # Competitors to analyze
 competitors:
   - name: "AWS"

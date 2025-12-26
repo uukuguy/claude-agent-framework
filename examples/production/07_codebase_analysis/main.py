@@ -94,9 +94,21 @@ async def run_codebase_analysis(
         options,
     )
 
-    # Initialize mapreduce session
+    # Initialize mapreduce session with business template
     try:
-        session = create_session("mapreduce", model=models.get("coordinator", "sonnet"), verbose=False)
+        session = create_session(
+            "mapreduce",
+            model=models.get("coordinator", "sonnet"),
+            business_template=config.get("business_template", "codebase_analysis"),
+            template_vars={
+                "codebase": config.get("codebase", "Project Codebase"),
+                "analysis_focus": config.get(
+                    "analysis_focus", ["Code Quality", "Security", "Performance"]
+                ),
+                "file_patterns": config.get("file_patterns", "**/*.py"),
+            },
+            verbose=False,
+        )
     except Exception as e:
         raise ExecutionError(f"Failed to initialize mapreduce session: {e}")
 
@@ -185,6 +197,10 @@ def _build_mapreduce_prompt(
 ) -> str:
     """Build mapreduce analysis prompt.
 
+    Note: Role instructions and workflow guidance are provided by the
+    business template (codebase_analysis). This function only generates
+    the user task description.
+
     Args:
         codebase_path: Path to codebase
         analysis_config: Analysis configuration
@@ -197,7 +213,7 @@ def _build_mapreduce_prompt(
         options: Runtime options
 
     Returns:
-        str: Complete prompt for mapreduce analysis
+        str: User task description for codebase analysis
     """
     # Extract enabled analysis types
     enabled_analyses = []
@@ -219,7 +235,11 @@ def _build_mapreduce_prompt(
     exclude_paths = advanced.get("filters", {}).get("exclude_paths", [])
     include_extensions = advanced.get("filters", {}).get("include_extensions", [])
 
-    prompt = f"""# Codebase Analysis - MapReduce Architecture
+    # Build deduplication and prioritization info
+    dedup_config = aggregation_rules.get("deduplication", {})
+    priority_criteria = aggregation_rules.get("prioritization", {}).get("criteria", {})
+
+    prompt = f"""# Codebase Analysis Task
 
 ## Analysis Target
 
@@ -230,30 +250,11 @@ def _build_mapreduce_prompt(
 - Exclude paths: {", ".join(exclude_paths) if exclude_paths else "None"}
 - Minimum confidence: {analysis_config.get("min_confidence", 0.7)}
 
-## MapReduce Workflow
-
-You are using the MapReduce architecture to analyze a large codebase in parallel.
+## Analysis Configuration
 
 Maximum parallel mappers: {analysis_config.get("max_parallel_mappers", 10)}
 Target chunk size: {analysis_config.get("chunk_size", 50)} files per chunk
 Aggregation strategy: {analysis_config.get("aggregation_strategy", "weighted")}
-
-### Roles
-
-**Coordinator ({mapreduce_config["coordinator"]["name"]})**:
-{mapreduce_config["coordinator"]["role"]}
-Responsibilities:
-{chr(10).join(f"- {r}" for r in mapreduce_config["coordinator"]["responsibilities"])}
-
-**Mapper ({mapreduce_config["mapper"]["name"]})**:
-{mapreduce_config["mapper"]["role"]}
-Available tools: {", ".join(mapreduce_config["mapper"]["tools"])}
-Analysis depth: {mapreduce_config["mapper"].get("analysis_depth", "standard")}
-
-**Reducer ({mapreduce_config["reducer"]["name"]})**:
-{mapreduce_config["reducer"]["role"]}
-Capabilities:
-{chr(10).join(f"- {c}" for c in mapreduce_config["reducer"]["capabilities"])}
 
 ## Chunking Strategy
 
@@ -267,86 +268,16 @@ Capabilities:
 
 {analyses_text}
 
-## Deduplication and Prioritization
+## Aggregation Rules
 
 **Deduplication**:
-- Similarity threshold: {aggregation_rules.get("deduplication", {}).get("similarity_threshold", 0.85)}
-- Merge strategy: {aggregation_rules.get("deduplication", {}).get("merge_strategy", "highest_severity")}
+- Similarity threshold: {dedup_config.get("similarity_threshold", 0.85)}
+- Merge strategy: {dedup_config.get("merge_strategy", "highest_severity")}
 
 **Prioritization Criteria**:
-{chr(10).join(f"- {k}: {v * 100}%" for k, v in aggregation_rules.get("prioritization", {}).get("criteria", {}).items())}
+{chr(10).join(f"- {k}: {v * 100}%" for k, v in priority_criteria.items()) if priority_criteria else "- Default prioritization"}
 
-## Expected Output Format
-
-Analyze the codebase using MapReduce and provide results in this format:
-
-### Map Phase
-
-For each chunk of the codebase:
-
-**Chunk N Analysis** (Files: [list of files])
-
-Issues Found:
-- [Severity] [Type] in [file]:[line] - [Description]
-  Confidence: [High/Medium/Low]
-  Fix effort: [Low/Medium/High]
-
-Metrics:
-- Lines of code: [count]
-- Complexity: [average/max]
-- Test coverage: [percentage]
-
-### Reduce Phase
-
-**Aggregated Results**
-
-Total files analyzed: [count]
-Total issues found: [count]
-
-**Issue Breakdown by Severity**:
-- Critical: [count] issues
-- High: [count] issues
-- Medium: [count] issues
-- Low: [count] issues
-
-**Top 10 Critical Issues**:
-1. [Issue description] in [file]:[line]
-   Severity: Critical
-   Type: [security/performance/quality/maintainability]
-   Impact: [High/Medium/Low]
-   Fix effort: [Low/Medium/High]
-   Recommendation: [How to fix]
-
-**Metrics Summary**:
-- Total lines of code: [count]
-- Average complexity: [score]
-- Test coverage: [percentage]
-- Quality score: [0-100]
-- Security score: [0-100]
-- Maintainability score: [0-100]
-
-**Module Health**:
-- [Module name]: [score]/100
-  Issues: [count critical], [count high], [count medium], [count low]
-  Recommendation: [Brief action item]
-
-**Trends** (if historical data available):
-- New issues introduced: [count]
-- Issues resolved: [count]
-- Net change: [+/-count]
-
-**Top Recommendations**:
-1. [Priority 1] [Action item]
-   Reason: [Why important]
-   Effort: [Low/Medium/High]
-   Impact: [High/Medium/Low]
-
-2. [Priority 2] [Action item]
-   ...
-
----
-
-Begin analysis now. Use the MapReduce pattern to efficiently process the codebase.
+Analyze the codebase using MapReduce pattern to efficiently identify issues and generate recommendations.
 """
 
     return prompt

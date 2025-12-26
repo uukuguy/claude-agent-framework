@@ -3,6 +3,19 @@
 
 architecture: debate
 
+# Business template configuration
+business_template: tech_decision
+
+# Template variables for prompt customization
+decision_topic: "Technology Selection"
+organization: "TechCorp"
+evaluation_criteria:
+  - "Technical Fit"
+  - "Implementation Feasibility"
+  - "Cost Efficiency"
+  - "Risk Management"
+  - "Business Alignment"
+
 # Decision context
 decision:
   title: "Technology Selection Decision"

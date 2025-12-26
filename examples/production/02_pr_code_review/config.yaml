@@ -3,6 +3,18 @@
 # Architecture to use
 architecture: pipeline
 
+# Business template configuration
+business_template: pr_code_review
+
+# Template variables for prompt customization
+repository: "Project Repository"
+pr_number: ""
+review_focus:
+  - "Code Quality"
+  - "Security"
+  - "Performance"
+  - "Style Compliance"
+
 # Review stages (executed sequentially)
 stages:
   - name: "architecture_review"

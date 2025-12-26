@@ -59,10 +59,16 @@ async def run_pr_review(config: dict) -> dict:
         # Build pipeline prompt
         prompt = _build_pipeline_prompt(stages, pr_data, analysis_config)
 
-        # Initialize session with Pipeline architecture
+        # Initialize session with Pipeline architecture and business template
         session = create_session(
             "pipeline",
             model=models.get("lead", "sonnet"),
+            business_template=config.get("business_template", "pr_code_review"),
+            template_vars={
+                "repository": config.get("repository", "Project Repository"),
+                "pr_number": config.get("pr_number", ""),
+                "review_focus": config.get("review_focus", ["Code Quality", "Security"]),
+            },
             verbose=False,
         )
 
@@ -188,6 +194,10 @@ def _build_pipeline_prompt(stages: list[dict], pr_data: dict, analysis_config: d
     """
     Build pipeline prompt.
 
+    Note: Role instructions and workflow guidance are provided by the
+    business template (pr_code_review). This function only generates
+    the user task description.
+
     Args:
         stages: List of stage configurations
         pr_data: PR data
@@ -210,36 +220,18 @@ Lines Added: {pr_data["lines_added"]}
 Lines Deleted: {pr_data["lines_deleted"]}
 """
 
-    prompt = f"""Conduct a comprehensive code review of the following Pull Request.
+    prompt = f"""Review the following Pull Request.
 
 ## PR Summary
 {diff_summary}
 
-## Review Pipeline Stages
-
-Execute the following stages sequentially:
-
+## Review Stages
 {stage_list}
 
-## Analysis Thresholds
+## Quality Thresholds
 {thresholds}
 
-## Instructions
-
-For each stage:
-1. Analyze the code changes thoroughly
-2. Identify issues, violations, or concerns
-3. Provide specific examples and line numbers
-4. Rate the stage as: ✅ PASS, ⚠️ WARNING, or ❌ FAIL
-5. Include actionable recommendations
-
-Generate a comprehensive review report with:
-- Executive summary
-- Stage-by-stage detailed analysis
-- Overall status (APPROVED / CHANGES_REQUESTED / REJECTED)
-- Prioritized recommendations for improvement
-
-Focus on production-ready code quality and best practices.
+Deliver a comprehensive code review report with stage-by-stage analysis and recommendations.
 """
 
     return prompt

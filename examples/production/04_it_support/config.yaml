@@ -3,6 +3,14 @@
 
 architecture: specialist_pool
 
+# Business template configuration
+business_template: it_support
+
+# Template variables for prompt customization
+organization: "TechCorp IT"
+support_level: "Tier 2"
+sla_priority: "standard"
+
 # Specialist configuration
 specialists:
   # Network specialist

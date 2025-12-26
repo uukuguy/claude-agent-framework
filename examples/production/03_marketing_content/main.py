@@ -54,8 +54,19 @@ async def run_content_optimization(config: dict) -> dict:
         content_config, brand_config, evaluation_config, iteration_config
     )
 
-    # Run critic-actor architecture
-    session = create_session("critic_actor", model=models.get("lead", "sonnet"), verbose=False)
+    # Run critic-actor architecture with business template
+    session = create_session(
+        "critic_actor",
+        model=models.get("lead", "sonnet"),
+        business_template=config.get("business_template", "marketing_content"),
+        template_vars={
+            "brand_name": config.get("brand_name", "Brand Name"),
+            "target_audience": config.get("target_audience", "Target Audience"),
+            "content_type": config.get("content_type", "blog post"),
+            "brand_voice": config.get("brand_voice", "professional"),
+        },
+        verbose=False,
+    )
 
     results = []
     async for msg in session.run(prompt):
@@ -108,6 +119,10 @@ def _build_critic_actor_prompt(
 ) -> str:
     """Build critic-actor prompt for content optimization.
 
+    Note: Role instructions and workflow guidance are provided by the
+    business template (marketing_content). This function only generates
+    the user task description.
+
     Args:
         content_config: Content configuration
         brand_config: Brand guidelines
@@ -153,7 +168,7 @@ def _build_critic_actor_prompt(
     if keywords:
         keywords_text = f"\n**SEO Keywords**: {', '.join(keywords)}"
 
-    prompt = f"""Create and iteratively improve marketing content using the Critic-Actor pattern.
+    prompt = f"""Optimize marketing content using iterative Critic-Actor pattern.
 
 ## Content Brief
 
@@ -168,52 +183,14 @@ def _build_critic_actor_prompt(
 {brand_text}
 
 ## Evaluation Criteria
-
-Evaluate the content on a 0-100 scale across these dimensions:
-
 {evaluation_text}
 
-## Iteration Process
+## Iteration Settings
+- Max iterations: {iteration_config["max_iterations"]}
+- Quality threshold: {iteration_config["quality_threshold"]}
+- Minimum improvement: {iteration_config.get("min_improvement", 5)}%
 
-1. **Actor**: Generate initial content based on the brief and brand guidelines
-2. **Critic**: Evaluate the content across all criteria, providing:
-   - Scores for each dimension (0-100)
-   - Overall score (weighted average)
-   - Specific feedback for improvement
-3. **Actor**: Revise content based on critic feedback
-4. **Repeat** for up to {iteration_config["max_iterations"]} iterations or until:
-   - Overall score ≥ {iteration_config["quality_threshold"]}
-   - Improvement < {iteration_config.get("min_improvement", 5)}%
-
-## Output Format
-
-For each iteration, provide:
-
-```
-=== ITERATION N ===
-**Content**:
-[Full content here]
-
-**Critic Evaluation**:
-- SEO: XX/100 - [Feedback]
-- Engagement: XX/100 - [Feedback]
-- Brand Consistency: XX/100 - [Feedback]
-- Accuracy: XX/100 - [Feedback]
-- **Overall Score**: XX/100
-
-**Improvement Recommendations**:
-1. [Specific actionable recommendation]
-2. [Another recommendation]
-...
-```
-
-For the final iteration, add:
-```
-=== FINAL CONTENT ===
-[Optimized content ready for publication]
-```
-
-Begin the iterative optimization process now.
+Deliver optimized content meeting the quality threshold.
 """
 
     return prompt
