@@ -23,10 +23,10 @@ try:
     from claude_agent_framework.config.schema import (
         AgentConfigSchema,
         FrameworkConfigSchema,
-        ModelType,
         PermissionMode,
     )
     from claude_agent_framework.config.validator import ConfigValidator
+    from claude_agent_framework.core.types import ModelType
 
     _has_advanced_config = True
 except ImportError:

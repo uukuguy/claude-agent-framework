@@ -10,6 +10,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from claude_agent_framework.core.types import ModelType
+
 try:
     from pydantic import BaseModel, Field, field_validator, model_validator
 except ImportError as e:
@@ -17,14 +19,6 @@ except ImportError as e:
         "Pydantic is required for advanced configuration. "
         "Install with: pip install 'claude-agent-framework[config]' or pip install pydantic>=2.0.0"
     ) from e
-
-
-class ModelType(str, Enum):
-    """Supported Claude model types."""
-
-    HAIKU = "haiku"
-    SONNET = "sonnet"
-    OPUS = "opus"
 
 
 class PermissionMode(str, Enum):
