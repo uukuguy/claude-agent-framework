@@ -20,6 +20,7 @@ from common import (
     ConfigurationError,
     ExecutionError,
     ResultSaver,
+    extract_message_content,
     load_yaml_config,
     setup_logging,
     validate_config,
@@ -72,7 +73,10 @@ async def run_competitive_intelligence(config: dict) -> dict:
         results = []
         async for msg in session.run(prompt):
             logger.info(f"Progress: {msg}")
-            results.append(msg)
+            # Extract string content from message objects
+            content = extract_message_content(msg)
+            if content:
+                results.append(content)
 
         # Teardown session
         await session.teardown()
@@ -85,7 +89,7 @@ async def run_competitive_intelligence(config: dict) -> dict:
             "summary": f"Analyzed {len(competitors)} competitors across {len(analysis_dimensions)} dimensions",
             "competitors": [c["name"] for c in competitors],
             "dimensions": analysis_dimensions,
-            "content": "\n\n".join(results),
+            "content": "\n\n".join(results) if results else "No content generated",
             "metadata": {
                 "total_competitors": len(competitors),
                 "total_dimensions": len(analysis_dimensions),

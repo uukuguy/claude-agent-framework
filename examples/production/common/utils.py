@@ -292,3 +292,48 @@ class ExecutionError(Exception):
     """Raised when execution fails."""
 
     pass
+
+
+def extract_message_content(msg: Any) -> str | None:
+    """
+    Extract string content from SDK message objects.
+
+    Claude Agent SDK returns various message types (ResultMessage, AssistantMessage,
+    SystemMessage, etc.) that need to be converted to strings for processing.
+
+    Args:
+        msg: SDK message object (ResultMessage, AssistantMessage, etc.)
+
+    Returns:
+        Extracted string content or None if no content
+    """
+    msg_type = type(msg).__name__
+
+    if msg_type == "ResultMessage":
+        # ResultMessage has 'result' attribute with final content
+        return getattr(msg, "result", None)
+
+    elif msg_type == "AssistantMessage":
+        # AssistantMessage has content blocks
+        content = getattr(msg, "content", [])
+        texts = []
+        for block in content:
+            if type(block).__name__ == "TextBlock":
+                text = getattr(block, "text", "")
+                if text:
+                    texts.append(text)
+        return "\n".join(texts) if texts else None
+
+    elif msg_type in ("ErrorMessage", "Error"):
+        # Error messages
+        return getattr(msg, "error", None) or getattr(msg, "message", None)
+
+    else:
+        # Unknown type - try to convert to string if has result or text
+        result = getattr(msg, "result", None)
+        if result:
+            return str(result)
+        text = getattr(msg, "text", None)
+        if text:
+            return str(text)
+        return None

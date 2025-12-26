@@ -19,6 +19,7 @@ from common import (
     ConfigurationError,
     ExecutionError,
     ResultSaver,
+    extract_message_content,
     load_yaml_config,
     setup_logging,
     validate_config,
@@ -71,7 +72,9 @@ async def run_content_optimization(config: dict) -> dict:
     results = []
     async for msg in session.run(prompt):
         logger.info(f"Progress: {msg}")
-        results.append(msg)
+        content = extract_message_content(msg)
+        if content:
+            results.append(content)
 
     await session.teardown()
 

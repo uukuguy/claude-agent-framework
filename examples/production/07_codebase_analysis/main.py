@@ -18,7 +18,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from common import ResultSaver, load_yaml_config, validate_config
+from common import ResultSaver, extract_message_content, load_yaml_config, validate_config
 
 from claude_agent_framework import create_session
 
@@ -116,7 +116,9 @@ async def run_codebase_analysis(
     results = []
     try:
         async for msg in session.run(prompt):
-            results.append(msg)
+            content = extract_message_content(msg)
+            if content:
+                results.append(content)
     except Exception as e:
         raise ExecutionError(f"MapReduce execution failed: {e}")
     finally:
