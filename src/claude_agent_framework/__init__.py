@@ -5,8 +5,8 @@ A multi-architecture agent framework built on Claude Agent SDK.
 Supports 7 architecture patterns for research, development, and decision support.
 
 Quick Start:
-    >>> from claude_agent_framework import init
-    >>> session = init("research")
+    >>> from claude_agent_framework import create_session
+    >>> session = create_session("research")
     >>> async for msg in session.run("Analyze AI market trends"):
     ...     print(msg)
 
@@ -25,8 +25,6 @@ CLI Usage:
 """
 
 # Primary API - simplified initialization (recommended)
-# Legacy imports for backwards compatibility
-from claude_agent_framework.agent import main, run_research_session
 from claude_agent_framework.config import (
     AgentConfig,
     FrameworkConfig,
@@ -35,16 +33,17 @@ from claude_agent_framework.config import (
 )
 from claude_agent_framework.core import (
     AgentSession,
+    ArchitectureType,
     BaseArchitecture,
+    ModelType,
+    ModelTypeStr,
     get_architecture,
     list_architectures,
     register_architecture,
 )
-from claude_agent_framework.init import (
+from claude_agent_framework.session import (
     InitializationError,
-    get_available_architectures,
-    init,
-    quick_query,
+    create_session,
 )
 from claude_agent_framework.utils import (
     QuietTranscriptWriter,
@@ -53,16 +52,20 @@ from claude_agent_framework.utils import (
     ToolCallRecord,
     TranscriptWriter,
     process_message,
+    quick_query,
     setup_session,
 )
 
 __version__ = "0.3.0"
 __all__ = [
     # Primary API (new simplified interface)
-    "init",
+    "create_session",
     "quick_query",
     "InitializationError",
-    "get_available_architectures",
+    # Type definitions
+    "ArchitectureType",
+    "ModelType",
+    "ModelTypeStr",
     # Core architecture
     "BaseArchitecture",
     "AgentSession",
@@ -84,7 +87,4 @@ __all__ = [
     "setup_session",
     # Message handling
     "process_message",
-    # Legacy entry points
-    "run_research_session",
-    "main",
 ]

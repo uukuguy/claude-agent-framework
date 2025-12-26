@@ -2,6 +2,7 @@
 Claude Agent Framework 工具模块
 """
 
+from claude_agent_framework.utils.helpers import quick_query
 from claude_agent_framework.utils.message_handler import (
     process_assistant_message,
     process_message,
@@ -19,6 +20,8 @@ from claude_agent_framework.utils.transcript import (
 )
 
 __all__ = [
+    # Helpers
+    "quick_query",
     # Tracker
     "SubagentTracker",
     "SubagentSession",

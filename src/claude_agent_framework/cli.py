@@ -24,11 +24,7 @@ logger = logging.getLogger(__name__)
 
 # Import architectures to trigger registration
 import claude_agent_framework.architectures  # noqa: F401
-from claude_agent_framework.config import validate_api_key
-from claude_agent_framework.core.registry import (
-    get_architecture,
-    get_architecture_info,
-)
+from claude_agent_framework.core.registry import get_architecture_info
 from claude_agent_framework.core.session import AgentSession
 
 
@@ -52,7 +48,7 @@ async def run_architecture(
     verbose: bool = False,
 ) -> None:
     """
-    Run the specified architecture.
+    Run the specified architecture using create_session() internally.
 
     Args:
         arch_name: Name of the architecture
@@ -61,24 +57,21 @@ async def run_architecture(
         interactive: Force interactive mode
         verbose: Enable verbose logging
     """
-    # Validate API key
-    if not validate_api_key():
-        print("Error: ANTHROPIC_API_KEY environment variable is not set.")
-        print("Please set it before running:")
-        print("  export ANTHROPIC_API_KEY='your-api-key'")
-        return
+    from claude_agent_framework import create_session
+    from claude_agent_framework.session import InitializationError
 
-    # Get architecture class
     try:
-        arch_class = get_architecture(arch_name)
-    except KeyError as e:
+        # Use create_session() to create session
+        session = create_session(
+            architecture=arch_name,  # type: ignore[arg-type]
+            model=model,  # type: ignore[arg-type]
+            verbose=verbose,
+        )
+    except InitializationError as e:
         print(f"Error: {e}")
-        print_architectures()
+        if "Unknown architecture" in str(e):
+            print_architectures()
         return
-
-    # Create architecture instance
-    arch = arch_class()
-    session = AgentSession(arch)
 
     try:
         if query and not interactive:
