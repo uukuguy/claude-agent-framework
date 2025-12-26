@@ -22,9 +22,9 @@ Claude Agent Framework 是一个生产级的多智能体 AI 系统编排层。�
 - **可扩展架构** - 通过简单装饰器注册自定义模式
 
 ```python
-from claude_agent_framework import init
+from claude_agent_framework import create_session
 
-session = init("research")
+session = create_session("research")
 async for msg in session.run("分析 AI 市场趋势"):
     print(msg)
 ```
@@ -508,14 +508,14 @@ class MyCustomArchitecture(BaseArchitecture):
 ### 使用插件 (v0.4.0 新功能)
 
 ```python
-from claude_agent_framework import init
+from claude_agent_framework import create_session
 from claude_agent_framework.plugins.builtin import (
     MetricsCollectorPlugin,
     CostTrackerPlugin,
     RetryHandlerPlugin
 )
 
-session = init("research")
+session = create_session("research")
 
 # 添加指标追踪
 metrics_plugin = MetricsCollectorPlugin()
@@ -563,7 +563,7 @@ if errors:
 ### 动态代理注册 (v0.4.0 新功能)
 
 ```python
-session = init("specialist_pool")
+session = create_session("specialist_pool")
 
 # 运行时添加新代理
 session.architecture.add_agent(

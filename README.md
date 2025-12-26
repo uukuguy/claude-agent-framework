@@ -26,9 +26,9 @@ Claude Agent Framework is a production-ready orchestration layer for building mu
 - **Extensible Architecture** - Register custom patterns with a simple decorator
 
 ```python
-from claude_agent_framework import init
+from claude_agent_framework import create_session
 
-session = init("research")
+session = create_session("research")
 async for msg in session.run("Analyze AI market trends"):
     print(msg)
 ```
@@ -101,11 +101,11 @@ export ANTHROPIC_API_KEY="your-api-key"
 ```
 
 ```python
-from claude_agent_framework import init
+from claude_agent_framework import create_session
 import asyncio
 
 async def main():
-    session = init("research")
+    session = create_session("research")
     async for msg in session.run("Analyze AI market trends in 2024"):
         print(msg)
 
@@ -444,9 +444,9 @@ claude-agent report <session-id> --output report.html
 ### Basic Usage
 
 ```python
-from claude_agent_framework import init
+from claude_agent_framework import create_session
 
-session = init("research")
+session = create_session("research")
 
 async for msg in session.run("Research quantum computing applications"):
     print(msg)
@@ -455,7 +455,7 @@ async for msg in session.run("Research quantum computing applications"):
 ### With Options
 
 ```python
-session = init(
+session = create_session(
     "pipeline",
     model="sonnet",      # haiku, sonnet, or opus
     verbose=True,        # Enable debug logging
@@ -495,14 +495,14 @@ class MyCustomArchitecture(BaseArchitecture):
 ### Using Plugins (New in v0.4.0)
 
 ```python
-from claude_agent_framework import init
+from claude_agent_framework import create_session
 from claude_agent_framework.plugins.builtin import (
     MetricsCollectorPlugin,
     CostTrackerPlugin,
     RetryHandlerPlugin
 )
 
-session = init("research")
+session = create_session("research")
 
 # Add metrics tracking
 metrics_plugin = MetricsCollectorPlugin()
@@ -550,7 +550,7 @@ if errors:
 ### Dynamic Agent Registration (New in v0.4.0)
 
 ```python
-session = init("specialist_pool")
+session = create_session("specialist_pool")
 
 # Add new agent at runtime
 session.architecture.add_agent(

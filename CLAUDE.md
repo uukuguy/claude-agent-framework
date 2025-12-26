@@ -92,11 +92,11 @@ claude_agent_framework/
 ├── __init__.py          # Package exports
 ├── config.py            # Configuration management
 ├── cli.py               # Command-line interface
-├── agent.py             # Legacy entry point
 ├── core/                # Core abstractions
 │   ├── base.py          # BaseArchitecture abstract class
 │   ├── registry.py      # Architecture registration
-│   └── session.py       # AgentSession lifecycle management
+│   ├── session.py       # AgentSession lifecycle management
+│   └── types.py         # Centralized type definitions
 ├── architectures/       # Built-in architecture implementations
 │   ├── research/        # Master-worker pattern
 │   ├── pipeline/        # Sequential stages
@@ -119,9 +119,9 @@ claude_agent_framework/
 ### 1. Simplified Initialization
 
 ```python
-from claude_agent_framework import init
+from claude_agent_framework import create_session
 
-session = init("research")  # Returns ready-to-use session
+session = create_session("research")  # Returns ready-to-use session
 async for msg in session.run("Analyze AI trends"):
     print(msg)
 ```
@@ -146,7 +146,7 @@ class MyArchitecture(BaseArchitecture):
 ### 3. Session Lifecycle
 
 ```python
-session = init("research")
+session = create_session("research")
 try:
     async for msg in session.run(prompt):
         process(msg)
@@ -201,11 +201,11 @@ class NewArchitecture(BaseArchitecture):
 
 ```python
 import pytest
-from claude_agent_framework import init
+from claude_agent_framework import create_session
 
 @pytest.mark.asyncio
 async def test_architecture():
-    session = init("research")
+    session = create_session("research")
     assert session.architecture.name == "research"
     await session.teardown()
 ```
