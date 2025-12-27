@@ -1,70 +1,32 @@
-"""Code Debugger using Reflexion Architecture.
-
-Provides intelligent debugging through execute-reflect-improve loop:
-- Execute debugging strategies
-- Reflect on results and failures
-- Improve strategy based on learnings
-- Iterate until root cause found
-
-Uses the Reflexion architecture from Claude Agent Framework.
-"""
+#!/usr/bin/env python3
+"""代码调试器 - 使用 Reflexion 架构的示例"""
 
 import asyncio
-import sys
+import json
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-# Add parent directories to path for common utilities
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from common import ResultSaver, extract_message_content, load_yaml_config, validate_config
+import yaml
 
 from claude_agent_framework import create_session
 from claude_agent_framework.core.roles import AgentInstanceConfig
 
+# ============================================================================
+# 业务配置 (定制点 1)
+# ============================================================================
 
-class ConfigurationError(Exception):
-    """Raised when configuration is invalid."""
+ARCHITECTURE = "reflexion"
+OUTPUT_DIR = Path(__file__).parent / "outputs"
 
-    pass
-
-
-class ExecutionError(Exception):
-    """Raised when debugging execution fails."""
-
-    pass
-
-
-def _confidence_to_score(confidence: str) -> float:
-    """Convert confidence string to numeric score.
-
-    Args:
-        confidence: Confidence level (High, Medium, Low, Unknown)
-
-    Returns:
-        float: Numeric score between 0.0 and 1.0
-    """
-    confidence_map = {
-        "high": 1.0,
-        "medium": 0.6,
-        "low": 0.3,
-        "unknown": 0.0,
-    }
-    return confidence_map.get(confidence.lower(), 0.0)
+# ============================================================================
+# 业务定制函数 (定制点 2-4)
+# ============================================================================
 
 
-def _build_agent_instances(config: dict, models: dict) -> list[AgentInstanceConfig]:
-    """Build agent instance configurations for reflexion architecture.
-
-    Args:
-        config: Configuration dictionary
-        models: Model configuration
-
-    Returns:
-        list: List of AgentInstanceConfig for executor and reflector roles
-    """
+def build_agent_instances(config: dict) -> list[AgentInstanceConfig]:
+    """定制点 2: 定义智能体实例"""
+    models = config.get("models", {})
     return [
         AgentInstanceConfig(
             name="debug_executor",
@@ -79,178 +41,17 @@ def _build_agent_instances(config: dict, models: dict) -> list[AgentInstanceConf
     ]
 
 
-async def run_code_debugger(
-    config: dict,
-    bug_description: str,
-    context: dict,
-) -> dict:
-    """Run code debugging using Reflexion architecture.
-
-    Uses two-layer prompt composition:
-    - Framework layer: Generic executor/reflector role capabilities (from architecture)
-    - Business layer: Debugging context and Skills (from prompts_dir)
-
-    Args:
-        config: Configuration dict from config.yaml
-        bug_description: Description of the bug
-        context: Context including error message, file paths, reproduction steps
-
-    Returns:
-        dict: Debugging result with root cause, fix, and validation
-    """
-    # Validate configuration
-    required_fields = ["architecture", "debugging", "reflexion_config", "strategies"]
-    validate_config(config, required_fields)
-
-    # Validate architecture type
-    if config["architecture"] != "reflexion":
-        raise ConfigurationError(
-            f"Invalid architecture: {config['architecture']}. Must be 'reflexion'"
-        )
-
-    # Validate reflexion_config structure
-    reflexion_config = config["reflexion_config"]
-    required_roles = ["executor", "reflector", "improver"]
-    for role in required_roles:
-        if role not in reflexion_config:
-            raise ConfigurationError(f"Missing reflexion_config.{role}")
-        if "name" not in reflexion_config[role]:
-            raise ConfigurationError(f"Missing reflexion_config.{role}.name")
-        if "role" not in reflexion_config[role]:
-            raise ConfigurationError(f"Missing reflexion_config.{role}.role")
-
-    # Extract configuration
-    debugging_config = config["debugging"]
-    strategies = config["strategies"]
-    bug_categories = config.get("bug_categories", {})
+def build_prompt(config: dict) -> str:
+    """定制点 3: 构建任务提示词"""
+    bug_data = config.get("_bug_data", {})
+    bug_description = bug_data.get("description", "")
+    context = bug_data.get("context", {})
+    debugging_config = config.get("debugging", {})
+    strategies = config.get("strategies", {})
     root_cause_framework = config.get("root_cause_analysis", {})
-    models = config.get("models", {})
     advanced = config.get("advanced", {})
 
-    # Build reflexion prompt
-    prompt = _build_reflexion_prompt(
-        bug_description,
-        context,
-        debugging_config,
-        reflexion_config,
-        strategies,
-        bug_categories,
-        root_cause_framework,
-        advanced,
-    )
-
-    # Business prompts directory (contains business-specific context)
-    prompts_dir = Path(__file__).parent / "prompts"
-
-    # Template variables for prompt customization
-    template_vars = {
-        "codebase": config.get("codebase", "Application Codebase"),
-        "language": config.get("language", "Python"),
-        "bug_description": bug_description,
-    }
-
-    # Build agent instances based on roles
-    agent_instances = _build_agent_instances(config, models)
-
-    # Initialize reflexion session with two-layer prompt composition:
-    # - Framework prompts: Generic executor/reflector capabilities (from reflexion architecture)
-    # - Business prompts: Debugging context and Skills (from prompts_dir)
-    try:
-        session = create_session(
-            "reflexion",
-            model=models.get("lead", "sonnet"),
-            agent_instances=agent_instances,
-            prompts_dir=prompts_dir,
-            template_vars=template_vars,
-            verbose=False,
-        )
-    except Exception as e:
-        raise ExecutionError(f"Failed to initialize reflexion session: {e}")
-
-    # Run reflexion loop
-    results = []
-    try:
-        async for msg in session.run(prompt):
-            content = extract_message_content(msg)
-            if content:
-                results.append(content)
-    except Exception as e:
-        raise ExecutionError(f"Reflexion execution failed: {e}")
-    finally:
-        await session.teardown()
-
-    # Parse debugging results
-    debugging_timeline = _parse_debugging_timeline(results)
-    root_cause = _extract_root_cause(results)
-    proposed_fix = _extract_proposed_fix(results)
-    failed_attempts = _extract_failed_attempts(results)
-    learnings = _extract_learnings(results)
-    prevention_recommendations = _extract_prevention_recommendations(results)
-
-    # Build result structure
-    result = {
-        "debug_session_id": str(uuid.uuid4()),
-        "title": f"Debug Session: {bug_description[:100]}",
-        "summary": _generate_summary(bug_description, root_cause, debugging_timeline),
-        "bug": {
-            "description": bug_description,
-            "error_message": context.get("error_message", ""),
-            "file_path": context.get("file_path", ""),
-            "category": _categorize_bug(bug_description, context, bug_categories),
-            "context": context,
-        },
-        "debugging_timeline": debugging_timeline,
-        "root_cause": root_cause,
-        "proposed_fix": proposed_fix,
-        "failed_attempts": failed_attempts,
-        "learnings": learnings,
-        "prevention_recommendations": prevention_recommendations,
-        "metadata": {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "iterations": len(debugging_timeline),
-            "max_iterations": debugging_config.get("max_iterations", 5),
-            "success": _confidence_to_score(root_cause.get("confidence", "Unknown"))
-            >= debugging_config.get("success_threshold", 0.9),
-            "config": {
-                "strategies_used": list(strategies.keys()),
-                "models": models,
-            },
-        },
-    }
-
-    return result
-
-
-def _build_reflexion_prompt(
-    bug_description: str,
-    context: dict,
-    debugging_config: dict,
-    reflexion_config: dict,
-    strategies: dict,
-    bug_categories: dict,
-    root_cause_framework: dict,
-    advanced: dict,
-) -> str:
-    """Build reflexion debugging prompt.
-
-    Note: Role instructions and workflow guidance are provided by the
-    business template (code_debugger). This function only generates
-    the user task description.
-
-    Args:
-        bug_description: Bug description
-        context: Bug context (error message, file path, etc.)
-        debugging_config: Debugging configuration
-        reflexion_config: Reflexion loop configuration
-        strategies: Available debugging strategies
-        bug_categories: Bug categorization patterns
-        root_cause_framework: Root cause analysis framework
-        advanced: Advanced options
-
-    Returns:
-        str: User task description for debugging
-    """
-    # Extract context
+    # 提取上下文
     error_message = context.get("error_message", "")
     file_path = context.get("file_path", "")
     reproduction_steps = context.get("reproduction_steps", [])
@@ -258,26 +59,24 @@ def _build_reflexion_prompt(
     actual_behavior = context.get("actual_behavior", "")
     code_snippet = context.get("code_snippet", "")
 
-    # Build strategies description
+    # 构建策略描述
     strategies_desc = []
     for strategy_name, strategy_config in strategies.items():
         desc = strategy_config.get("description", "")
         priority = strategy_config.get("priority", 0)
         strategies_desc.append(f"- **{strategy_name}** (Priority {priority}): {desc}")
-
     strategies_text = "\n".join(strategies_desc)
 
-    # Build root cause categories
+    # 构建根因分类
     categories = root_cause_framework.get("categories", [])
     categories_desc = []
     for category in categories:
         name = category.get("name", "")
         indicators = category.get("indicators", [])
         categories_desc.append(f"- **{name}**: {', '.join(indicators)}")
-
     categories_text = "\n".join(categories_desc)
 
-    # Build advanced options
+    # 构建高级选项
     advanced_options = []
     if advanced.get("enable_static_analysis"):
         advanced_options.append("- Static analysis enabled")
@@ -287,7 +86,7 @@ def _build_reflexion_prompt(
         advanced_options.append("- Verbose logging enabled")
     advanced_text = "\n".join(advanced_options) if advanced_options else "None"
 
-    prompt = f"""# Code Debugging Task
+    return f"""# Code Debugging Task
 
 ## Bug Description
 
@@ -334,25 +133,80 @@ Success threshold: {debugging_config.get("success_threshold", 0.9)}
 Debug this issue using the reflexion loop to systematically find and fix the root cause.
 """
 
-    return prompt
+
+def build_result(config: dict, contents: list[str], session) -> dict:
+    """定制点 4: 构建输出结果"""
+    bug_data = config.get("_bug_data", {})
+    bug_description = bug_data.get("description", "")
+    context = bug_data.get("context", {})
+    debugging_config = config.get("debugging", {})
+    bug_categories = config.get("bug_categories", {})
+    strategies = config.get("strategies", {})
+    models = config.get("models", {})
+
+    # 解析调试结果
+    debugging_timeline = parse_debugging_timeline(contents)
+    root_cause = extract_root_cause(contents)
+    proposed_fix = extract_proposed_fix(contents)
+    failed_attempts = extract_failed_attempts(contents)
+    learnings = extract_learnings(contents)
+    prevention_recommendations = extract_prevention_recommendations(contents)
+
+    return {
+        "debug_session_id": str(uuid.uuid4()),
+        "title": f"Debug Session: {bug_description[:100]}",
+        "summary": generate_summary(bug_description, root_cause, debugging_timeline),
+        "bug": {
+            "description": bug_description,
+            "error_message": context.get("error_message", ""),
+            "file_path": context.get("file_path", ""),
+            "category": categorize_bug(bug_description, context, bug_categories),
+            "context": context,
+        },
+        "debugging_timeline": debugging_timeline,
+        "root_cause": root_cause,
+        "proposed_fix": proposed_fix,
+        "failed_attempts": failed_attempts,
+        "learnings": learnings,
+        "prevention_recommendations": prevention_recommendations,
+        "metadata": {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "architecture": ARCHITECTURE,
+            "iterations": len(debugging_timeline),
+            "max_iterations": debugging_config.get("max_iterations", 5),
+            "success": confidence_to_score(root_cause.get("confidence", "Unknown"))
+            >= debugging_config.get("success_threshold", 0.9),
+            "config": {
+                "strategies_used": list(strategies.keys()),
+                "models": models,
+            },
+        },
+    }
 
 
-def _categorize_bug(bug_description: str, context: dict, bug_categories: dict) -> str:
-    """Categorize bug based on description and context.
+# ============================================================================
+# 业务辅助函数
+# ============================================================================
 
-    Args:
-        bug_description: Bug description
-        context: Bug context
-        bug_categories: Bug category patterns
 
-    Returns:
-        str: Bug category
-    """
+def confidence_to_score(confidence: str) -> float:
+    """将置信度字符串转换为数值分数"""
+    confidence_map = {
+        "high": 1.0,
+        "medium": 0.6,
+        "low": 0.3,
+        "unknown": 0.0,
+    }
+    return confidence_map.get(confidence.lower(), 0.0)
+
+
+def categorize_bug(bug_description: str, context: dict, bug_categories: dict) -> str:
+    """根据描述和上下文分类 bug"""
     error_message = context.get("error_message", "").lower()
     description_lower = bug_description.lower()
 
-    for category, config in bug_categories.items():
-        patterns = config.get("patterns", [])
+    for category, cfg in bug_categories.items():
+        patterns = cfg.get("patterns", [])
         for pattern in patterns:
             if pattern.lower() in error_message or pattern.lower() in description_lower:
                 return category
@@ -360,20 +214,10 @@ def _categorize_bug(bug_description: str, context: dict, bug_categories: dict) -
     return "unknown"
 
 
-def _parse_debugging_timeline(results: list[str]) -> list[dict]:
-    """Parse debugging timeline from reflexion results.
-
-    Args:
-        results: Raw reflexion output
-
-    Returns:
-        list[dict]: Timeline of debugging iterations
-    """
+def parse_debugging_timeline(results: list[str]) -> list[dict]:
+    """解析调试时间线"""
     full_text = "\n".join(results)
-
     timeline = []
-
-    # Extract iterations
     iterations = []
     current_iteration = None
 
@@ -388,11 +232,8 @@ def _parse_debugging_timeline(results: list[str]) -> list[dict]:
     if current_iteration:
         iterations.append(current_iteration)
 
-    # Parse each iteration
     for idx, iteration_data in enumerate(iterations):
         iteration_text = "\n".join(iteration_data["content"])
-
-        # Extract executor, reflector, improver sections
         executor_text = ""
         reflector_text = ""
         improver_text = ""
@@ -414,29 +255,19 @@ def _parse_debugging_timeline(results: list[str]) -> list[dict]:
             if len(parts) > 1:
                 improver_text = parts[1].strip()
 
-        timeline.append(
-            {
-                "iteration": idx + 1,
-                "executor": executor_text,
-                "reflector": reflector_text,
-                "improver": improver_text,
-            }
-        )
+        timeline.append({
+            "iteration": idx + 1,
+            "executor": executor_text,
+            "reflector": reflector_text,
+            "improver": improver_text,
+        })
 
     return timeline
 
 
-def _extract_root_cause(results: list[str]) -> dict:
-    """Extract root cause from debugging results.
-
-    Args:
-        results: Raw reflexion output
-
-    Returns:
-        dict: Root cause details
-    """
+def extract_root_cause(results: list[str]) -> dict:
+    """提取根因"""
     full_text = "\n".join(results)
-
     root_cause = {
         "category": "Unknown",
         "description": "",
@@ -448,12 +279,10 @@ def _extract_root_cause(results: list[str]) -> dict:
         cause_start = full_text.index("**Root Cause Identified**")
         cause_section = full_text[cause_start : cause_start + 1500]
 
-        # Extract category
         if "Category:" in cause_section:
             category_line = cause_section.split("Category:")[1].split("\n")[0]
             root_cause["category"] = category_line.strip()
 
-        # Extract description
         if "Description:" in cause_section:
             desc_start = cause_section.index("Description:")
             desc_end = cause_section.find("Why it causes", desc_start)
@@ -464,12 +293,10 @@ def _extract_root_cause(results: list[str]) -> dict:
             description = cause_section[desc_start:desc_end]
             root_cause["description"] = description.replace("Description:", "").strip()
 
-        # Extract confidence
         if "Confidence:" in cause_section:
             conf_line = cause_section.split("Confidence:")[1].split("\n")[0]
             root_cause["confidence"] = conf_line.strip()
 
-        # Extract evidence
         if "Evidence:" in cause_section:
             evidence_start = cause_section.index("Evidence:")
             evidence_section = cause_section[evidence_start : evidence_start + 500]
@@ -482,17 +309,9 @@ def _extract_root_cause(results: list[str]) -> dict:
     return root_cause
 
 
-def _extract_proposed_fix(results: list[str]) -> dict:
-    """Extract proposed fix from debugging results.
-
-    Args:
-        results: Raw reflexion output
-
-    Returns:
-        dict: Proposed fix details
-    """
+def extract_proposed_fix(results: list[str]) -> dict:
+    """提取建议修复"""
     full_text = "\n".join(results)
-
     proposed_fix = {
         "file_path": None,
         "before_code": None,
@@ -505,21 +324,16 @@ def _extract_proposed_fix(results: list[str]) -> dict:
         fix_start = full_text.index("**Proposed Fix**")
         fix_section = full_text[fix_start : fix_start + 2000]
 
-        # Extract file path
         if "# File:" in fix_section:
             file_line = fix_section.split("# File:")[1].split("\n")[0]
             proposed_fix["file_path"] = file_line.strip()
 
-        # Extract before/after code
         if "# Before" in fix_section and "# After" in fix_section:
-            # Extract before code
             before_start = fix_section.find("# Before")
             after_marker = fix_section.find("# After", before_start)
             if after_marker != -1:
                 before_section = fix_section[before_start:after_marker]
-                # Skip the "# Before (problematic code):" line
                 lines = before_section.split("\n")[1:]
-                # Stop at empty lines or comment markers
                 code_lines = []
                 for line in lines:
                     if not line.strip() or line.strip().startswith("# After"):
@@ -527,16 +341,13 @@ def _extract_proposed_fix(results: list[str]) -> dict:
                     code_lines.append(line)
                 proposed_fix["before_code"] = "\n".join(code_lines).strip()
 
-            # Extract after code
             after_start = fix_section.find("# After")
             expl_marker = fix_section.find("# Explanation:", after_start)
             if expl_marker == -1:
-                expl_marker = fix_section.find("```", after_start + 10)  # Find closing ```
+                expl_marker = fix_section.find("```", after_start + 10)
             if expl_marker != -1:
                 after_section = fix_section[after_start:expl_marker]
-                # Skip the "# After (fixed code):" line
                 lines = after_section.split("\n")[1:]
-                # Stop at empty lines, explanation, or closing ```
                 code_lines = []
                 for line in lines:
                     if line.strip().startswith("# Explanation") or line.strip() == "```":
@@ -544,7 +355,6 @@ def _extract_proposed_fix(results: list[str]) -> dict:
                     code_lines.append(line)
                 proposed_fix["after_code"] = "\n".join(code_lines).strip()
 
-        # Extract explanation
         if "# Explanation:" in fix_section:
             expl_start = fix_section.index("# Explanation:")
             expl_end = fix_section.find("Alternative approaches", expl_start)
@@ -558,17 +368,9 @@ def _extract_proposed_fix(results: list[str]) -> dict:
     return proposed_fix
 
 
-def _extract_failed_attempts(results: list[str]) -> list[dict]:
-    """Extract failed debugging attempts.
-
-    Args:
-        results: Raw reflexion output
-
-    Returns:
-        list[dict]: Failed attempts with reasons
-    """
+def extract_failed_attempts(results: list[str]) -> list[dict]:
+    """提取失败尝试"""
     full_text = "\n".join(results)
-
     failed_attempts = []
 
     if "**Failed Attempts Summary**" in full_text:
@@ -578,7 +380,6 @@ def _extract_failed_attempts(results: list[str]) -> list[dict]:
         lines = summary_section.split("\n")
         for line in lines:
             if line.strip().startswith("Iteration"):
-                # Parse: "Iteration 1: Tried X - Failed because Y"
                 parts = line.split(":")
                 if len(parts) >= 2:
                     iteration_part = parts[0].strip()
@@ -586,28 +387,18 @@ def _extract_failed_attempts(results: list[str]) -> list[dict]:
 
                     if " - Failed because " in detail_part:
                         tried_part, reason_part = detail_part.split(" - Failed because ")
-                        failed_attempts.append(
-                            {
-                                "iteration": iteration_part,
-                                "strategy": tried_part.replace("Tried", "").strip(),
-                                "reason": reason_part.strip(),
-                            }
-                        )
+                        failed_attempts.append({
+                            "iteration": iteration_part,
+                            "strategy": tried_part.replace("Tried", "").strip(),
+                            "reason": reason_part.strip(),
+                        })
 
     return failed_attempts
 
 
-def _extract_learnings(results: list[str]) -> list[str]:
-    """Extract key learnings from debugging session.
-
-    Args:
-        results: Raw reflexion output
-
-    Returns:
-        list[str]: Key learnings
-    """
+def extract_learnings(results: list[str]) -> list[str]:
+    """提取关键学习"""
     full_text = "\n".join(results)
-
     learnings = []
 
     if "Key learnings:" in full_text:
@@ -623,17 +414,9 @@ def _extract_learnings(results: list[str]) -> list[str]:
     return learnings if learnings else ["No explicit learnings documented"]
 
 
-def _extract_prevention_recommendations(results: list[str]) -> list[str]:
-    """Extract prevention recommendations.
-
-    Args:
-        results: Raw reflexion output
-
-    Returns:
-        list[str]: Prevention recommendations
-    """
+def extract_prevention_recommendations(results: list[str]) -> list[str]:
+    """提取预防建议"""
     full_text = "\n".join(results)
-
     recommendations = []
 
     if "**Prevention Recommendations**" in full_text:
@@ -649,19 +432,8 @@ def _extract_prevention_recommendations(results: list[str]) -> list[str]:
     return recommendations if recommendations else ["No prevention recommendations provided"]
 
 
-def _generate_summary(
-    bug_description: str, root_cause: dict, debugging_timeline: list[dict]
-) -> str:
-    """Generate executive summary.
-
-    Args:
-        bug_description: Bug description
-        root_cause: Root cause dict
-        debugging_timeline: Debugging iterations
-
-    Returns:
-        str: Summary text
-    """
+def generate_summary(bug_description: str, root_cause: dict, debugging_timeline: list[dict]) -> str:
+    """生成执行摘要"""
     iterations = len(debugging_timeline)
     category = root_cause.get("category", "Unknown")
     confidence = root_cause.get("confidence", "Low")
@@ -669,56 +441,115 @@ def _generate_summary(
     return f"Debugged: {bug_description[:100]}. Root cause: {category}. Confidence: {confidence}. Iterations: {iterations}."
 
 
-async def main():
-    """Main entry point for code debugger CLI."""
-    # Load configuration
+# ============================================================================
+# 公共主线 (所有示例相同)
+# ============================================================================
+
+
+def load_config() -> dict:
+    """加载 YAML 配置文件"""
     config_path = Path(__file__).parent / "config.yaml"
-    config = load_yaml_config(config_path)
+    with open(config_path, encoding="utf-8") as f:
+        return yaml.safe_load(f)
 
-    # Example bug
-    bug_description = "AttributeError: 'NoneType' object has no attribute 'get'"
 
-    context = {
-        "error_message": """
+def save_result(result: dict, filename: str) -> Path:
+    """保存结果为 JSON 文件"""
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    output_path = OUTPUT_DIR / f"{filename}.json"
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(result, f, indent=2, ensure_ascii=False)
+    return output_path
+
+
+def extract_content(msg) -> str | None:
+    """从 SDK 消息中提取文本内容"""
+    if hasattr(msg, "result"):
+        return msg.result
+    if hasattr(msg, "content"):
+        texts = [b.text for b in msg.content if hasattr(b, "text")]
+        return "\n".join(texts) if texts else None
+    return None
+
+
+async def run_task(config: dict) -> dict:
+    """执行任务的标准流程"""
+    prompt = build_prompt(config)
+    agent_instances = build_agent_instances(config)
+    models = config.get("models", {})
+
+    session = create_session(
+        ARCHITECTURE,
+        model=models.get("lead", "sonnet"),
+        agent_instances=agent_instances,
+        prompts_dir=Path(__file__).parent / "prompts",
+        template_vars=config.get("template_vars", {}),
+        verbose=False,
+    )
+
+    contents = []
+    try:
+        async for msg in session.run(prompt):
+            if content := extract_content(msg):
+                contents.append(content)
+    finally:
+        await session.teardown()
+
+    return build_result(config, contents, session)
+
+
+async def main():
+    """入口函数"""
+    try:
+        config = load_config()
+
+        # 业务特定: 设置 bug 数据
+        bug_description = "AttributeError: 'NoneType' object has no attribute 'get'"
+        context = {
+            "error_message": """
 Traceback (most recent call last):
   File "app.py", line 45, in process_user_data
     user_email = user.get('email')
 AttributeError: 'NoneType' object has no attribute 'get'
-        """,
-        "file_path": "app.py",
-        "code_snippet": """
+            """,
+            "file_path": "app.py",
+            "code_snippet": """
 def process_user_data(user_id):
     user = fetch_user(user_id)
     user_email = user.get('email')  # Line 45 - Error occurs here
     send_notification(user_email)
     return user
-        """,
-        "reproduction_steps": [
-            "Call process_user_data(999) with non-existent user ID",
-            "fetch_user returns None for invalid ID",
-            "Attempt to call .get() on None raises AttributeError",
-        ],
-        "expected_behavior": "Should handle missing user gracefully",
-        "actual_behavior": "Crashes with AttributeError",
-    }
+            """,
+            "reproduction_steps": [
+                "Call process_user_data(999) with non-existent user ID",
+                "fetch_user returns None for invalid ID",
+                "Attempt to call .get() on None raises AttributeError",
+            ],
+            "expected_behavior": "Should handle missing user gracefully",
+            "actual_behavior": "Crashes with AttributeError",
+        }
 
-    # Run debugging
-    print(f"Debugging: {bug_description}\n")
+        config["_bug_data"] = {
+            "description": bug_description,
+            "context": context,
+        }
 
-    result = await run_code_debugger(config, bug_description, context)
+        print(f"Debugging: {bug_description}\n")
 
-    print(f"Debug Session ID: {result['debug_session_id']}")
-    print(f"Root Cause: {result['root_cause']['category']}")
-    print(f"Confidence: {result['root_cause']['confidence']}")
-    print(f"Iterations: {result['metadata']['iterations']}")
-    print(f"\nSummary: {result['summary']}")
+        result = await run_task(config)
 
-    # Save result
-    output_config = config.get("output", {})
-    saver = ResultSaver(output_config.get("directory", "outputs/debug_sessions"))
-    output_path = saver.save(result, format=output_config.get("format", "json"))
+        output_path = save_result(result, f"{ARCHITECTURE}_result")
 
-    print(f"\nFull debugging report saved to: {output_path}")
+        print(f"Debug Session ID: {result['debug_session_id']}")
+        print(f"Root Cause: {result['root_cause']['category']}")
+        print(f"Confidence: {result['root_cause']['confidence']}")
+        print(f"Iterations: {result['metadata']['iterations']}")
+        print(f"\n✅ Complete! Output: {output_path}")
+        print(f"📊 Summary: {result.get('summary', 'N/A')}")
+
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

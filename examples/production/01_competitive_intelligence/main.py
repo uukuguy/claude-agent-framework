@@ -1,174 +1,31 @@
 #!/usr/bin/env python3
-"""
-Competitive Intelligence Analysis System.
-
-Automated competitor research and analysis using Research architecture.
-Demonstrates parallel data gathering, analysis, and report generation.
-"""
-
-from __future__ import annotations
+"""竞争情报分析 - 使用 Research 架构的示例"""
 
 import asyncio
-import logging
-import sys
+import json
+from datetime import datetime
 from pathlib import Path
 
-# Add parent directory to path to import common utilities
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from common import (
-    ConfigurationError,
-    ExecutionError,
-    ResultSaver,
-    extract_message_content,
-    load_yaml_config,
-    setup_logging,
-    validate_config,
-)
+import yaml
 
 from claude_agent_framework import create_session
 from claude_agent_framework.core.roles import AgentInstanceConfig
 
-logger = logging.getLogger(__name__)
+# ============================================================================
+# 业务配置 (定制点 1)
+# ============================================================================
+
+ARCHITECTURE = "research"
+OUTPUT_DIR = Path(__file__).parent / "outputs"
+
+# ============================================================================
+# 业务定制函数 (定制点 2-4)
+# ============================================================================
 
 
-async def run_competitive_intelligence(config: dict) -> dict:
-    """
-    Run competitive intelligence analysis.
-
-    Args:
-        config: Configuration dictionary
-
-    Returns:
-        Analysis results
-
-    Raises:
-        ExecutionError: If analysis fails
-    """
-    try:
-        # Extract configuration
-        competitors = config["competitors"]
-        analysis_dimensions = config["analysis_dimensions"]
-        models = config.get("models", {})
-
-        # Build analysis prompt
-        prompt = _build_analysis_prompt(competitors, analysis_dimensions)
-
-        logger.info(
-            f"Starting competitive intelligence analysis for {len(competitors)} competitors"
-        )
-
-        # Business prompts directory (contains business-specific context)
-        prompts_dir = Path(__file__).parent / "prompts"
-
-        # Template variables for prompt customization
-        template_vars = {
-            "company_name": config.get("company_name", "Our Company"),
-            "industry": config.get("industry", "Technology"),
-        }
-
-        # Build agent instances based on competitors
-        agent_instances = _build_agent_instances(config, models)
-        logger.info(
-            f"Created {len(agent_instances)} agent instances for {len(competitors)} competitors"
-        )
-
-        # Create session with two-layer prompt composition:
-        # - Framework prompts: Generic role capabilities (from research architecture)
-        # - Business prompts: Specific context and Skills references (from prompts_dir)
-        session = create_session(
-            "research",
-            model=models.get("lead", "sonnet"),
-            agent_instances=agent_instances,
-            prompts_dir=prompts_dir,
-            template_vars=template_vars,
-            verbose=False,
-        )
-
-        # Run analysis
-        results = []
-        async for msg in session.run(prompt):
-            logger.info(f"Progress: {msg}")
-            # Extract string content from message objects
-            content = extract_message_content(msg)
-            if content:
-                results.append(content)
-
-        # Teardown session
-        await session.teardown()
-
-        logger.info("Analysis completed successfully")
-
-        # Format results
-        return {
-            "title": "Competitive Intelligence Analysis Report",
-            "summary": f"Analyzed {len(competitors)} competitors across {len(analysis_dimensions)} dimensions",
-            "competitors": [c["name"] for c in competitors],
-            "dimensions": analysis_dimensions,
-            "content": "\n\n".join(results) if results else "No content generated",
-            "metadata": {
-                "total_competitors": len(competitors),
-                "total_dimensions": len(analysis_dimensions),
-                "session_dir": str(session.session_dir) if session.session_dir else None,
-            },
-        }
-
-    except Exception as e:
-        logger.exception("Error during competitive intelligence analysis")
-        raise ExecutionError(f"Analysis failed: {e}") from e
-
-
-def _build_analysis_prompt(competitors: list[dict], dimensions: list[str]) -> str:
-    """
-    Build analysis prompt for the research architecture.
-
-    Role instructions and workflow guidance are provided by:
-    - Framework layer: Generic role capabilities (worker.txt, processor.txt, etc.)
-    - Business layer: Specific context and Skills references (prompts/*.txt)
-
-    This function only generates the user task description.
-
-    Args:
-        competitors: List of competitor configurations
-        dimensions: Analysis dimensions
-
-    Returns:
-        Formatted prompt string
-    """
-    competitor_list = "\n".join(
-        f"- {c['name']}: {c['website']}\n  Focus: {', '.join(c.get('focus_areas', ['General analysis']))}"
-        for c in competitors
-    )
-
-    dimension_list = "\n".join(f"- {dim}" for dim in dimensions)
-
-    prompt = f"""Analyze the following competitors:
-
-{competitor_list}
-
-Analysis dimensions:
-{dimension_list}
-
-Deliver a comprehensive competitive intelligence report with comparative analysis and strategic recommendations.
-"""
-
-    return prompt
-
-
-def _build_agent_instances(config: dict, models: dict) -> list[AgentInstanceConfig]:
-    """
-    Build agent instances based on competitors configuration.
-
-    Creates one researcher worker per competitor for parallel research,
-    plus optional processor and required synthesizer.
-
-    Args:
-        config: Configuration dictionary with competitors list
-        models: Model configuration
-
-    Returns:
-        List of AgentInstanceConfig instances
-    """
+def build_agent_instances(config: dict) -> list[AgentInstanceConfig]:
+    """定制点 2: 定义智能体实例"""
+    models = config.get("models", {})
     agent_model = models.get("agents", "haiku")
     competitors = config.get("competitors", [])
 
@@ -217,65 +74,119 @@ def _build_agent_instances(config: dict, models: dict) -> list[AgentInstanceConf
     return agent_instances
 
 
-async def main():
-    """Main entry point."""
+def build_prompt(config: dict) -> str:
+    """定制点 3: 构建任务提示词"""
+    competitors = config["competitors"]
+    dimensions = config["analysis_dimensions"]
+
+    competitor_list = "\n".join(
+        f"- {c['name']}: {c['website']}\n  Focus: {', '.join(c.get('focus_areas', ['General analysis']))}"
+        for c in competitors
+    )
+    dimension_list = "\n".join(f"- {dim}" for dim in dimensions)
+
+    return f"""Analyze the following competitors:
+
+{competitor_list}
+
+Analysis dimensions:
+{dimension_list}
+
+Deliver a comprehensive competitive intelligence report with comparative analysis and strategic recommendations.
+"""
+
+
+def build_result(config: dict, contents: list[str], session) -> dict:
+    """定制点 4: 构建输出结果"""
+    competitors = config["competitors"]
+    dimensions = config["analysis_dimensions"]
+
+    return {
+        "title": "Competitive Intelligence Analysis Report",
+        "summary": f"Analyzed {len(competitors)} competitors across {len(dimensions)} dimensions",
+        "competitors": [c["name"] for c in competitors],
+        "dimensions": dimensions,
+        "content": "\n\n".join(contents) if contents else "No content generated",
+        "metadata": {
+            "timestamp": datetime.utcnow().isoformat(),
+            "architecture": ARCHITECTURE,
+            "total_competitors": len(competitors),
+            "total_dimensions": len(dimensions),
+        },
+    }
+
+
+# ============================================================================
+# 公共主线 (所有示例相同)
+# ============================================================================
+
+
+def load_config() -> dict:
+    """加载 YAML 配置文件"""
+    config_path = Path(__file__).parent / "config.yaml"
+    with open(config_path, encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
+def save_result(result: dict, filename: str) -> Path:
+    """保存结果为 JSON 文件"""
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    output_path = OUTPUT_DIR / f"{filename}.json"
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(result, f, indent=2, ensure_ascii=False)
+    return output_path
+
+
+def extract_content(msg) -> str | None:
+    """从 SDK 消息中提取文本内容"""
+    if hasattr(msg, "result"):
+        return msg.result
+    if hasattr(msg, "content"):
+        texts = [b.text for b in msg.content if hasattr(b, "text")]
+        return "\n".join(texts) if texts else None
+    return None
+
+
+async def run_task(config: dict) -> dict:
+    """执行任务的标准流程"""
+    prompt = build_prompt(config)
+    agent_instances = build_agent_instances(config)
+    models = config.get("models", {})
+
+    session = create_session(
+        ARCHITECTURE,
+        model=models.get("lead", "sonnet"),
+        agent_instances=agent_instances,
+        prompts_dir=Path(__file__).parent / "prompts",
+        template_vars=config.get("template_vars", {}),
+        verbose=False,
+    )
+
+    contents = []
     try:
-        # Load configuration
-        config_path = Path(__file__).parent / "config.yaml"
-        config = load_yaml_config(config_path)
+        async for msg in session.run(prompt):
+            if content := extract_content(msg):
+                contents.append(content)
+    finally:
+        await session.teardown()
 
-        # Validate configuration
-        validate_config(config, ["architecture", "competitors", "analysis_dimensions", "output"])
+    return build_result(config, contents, session)
 
-        # Setup logging
-        log_config = config.get("logging", {})
-        setup_logging(
-            level=log_config.get("level", "INFO"),
-            log_file=Path(log_config.get("file")) if "file" in log_config else None,
-        )
 
-        logger.info("=" * 60)
-        logger.info("Competitive Intelligence Analysis System")
-        logger.info("=" * 60)
+async def main():
+    """入口函数"""
+    try:
+        config = load_config()
+        result = await run_task(config)
 
-        # Run analysis
-        results = await run_competitive_intelligence(config)
+        output_path = save_result(result, f"{ARCHITECTURE}_result")
 
-        # Save results
-        output_config = config["output"]
-        saver = ResultSaver(output_config["directory"])
-
-        output_path = saver.save(
-            results,
-            format=output_config.get("format", "json"),
-            filename="competitive_intelligence_report",
-        )
-
-        print("\n✅ Analysis complete!")
-        print(f"📊 Report saved to: {output_path}")
-
-        # Print summary
-        print("\n📈 Summary:")
-        print(f"  - Competitors analyzed: {len(results['competitors'])}")
-        print(f"  - Analysis dimensions: {len(results['dimensions'])}")
-        if results["metadata"]["session_dir"]:
-            print(f"  - Session logs: {results['metadata']['session_dir']}")
-
-    except ConfigurationError as e:
-        logger.error(f"Configuration error: {e}")
-        print(f"\n❌ Configuration Error: {e}")
-        print("Please check your config.yaml file")
-        sys.exit(1)
-
-    except ExecutionError as e:
-        logger.error(f"Execution error: {e}")
-        print(f"\n❌ Execution Error: {e}")
-        sys.exit(2)
+        print(f"✅ Complete! Output: {output_path}")
+        print(f"📊 Summary: {result.get('summary', 'N/A')}")
 
     except Exception as e:
-        logger.exception("Unexpected error")
-        print(f"\n❌ Unexpected Error: {e}")
-        sys.exit(3)
+        print(f"❌ Error: {e}")
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

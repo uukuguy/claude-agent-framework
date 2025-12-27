@@ -1,50 +1,31 @@
-"""Marketing Content Optimization Example.
+#!/usr/bin/env python3
+"""营销内容优化 - 使用 Critic-Actor 架构的示例"""
 
-This example demonstrates using the Critic-Actor architecture to create and
-iteratively improve marketing content based on multi-dimensional evaluation.
-
-Uses two-layer prompt composition:
-- Framework layer: Generic actor/critic role capabilities
-- Business layer: Marketing-specific context and Skills references
-"""
-
-import argparse
 import asyncio
-import logging
-import sys
+import json
 from datetime import datetime
 from pathlib import Path
 
-# Add parent directories to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from common import (
-    ConfigurationError,
-    ExecutionError,
-    ResultSaver,
-    extract_message_content,
-    load_yaml_config,
-    setup_logging,
-    validate_config,
-)
+import yaml
 
 from claude_agent_framework import create_session
 from claude_agent_framework.core.roles import AgentInstanceConfig
 
-logger = logging.getLogger(__name__)
+# ============================================================================
+# 业务配置 (定制点 1)
+# ============================================================================
+
+ARCHITECTURE = "critic_actor"
+OUTPUT_DIR = Path(__file__).parent / "outputs"
+
+# ============================================================================
+# 业务定制函数 (定制点 2-4)
+# ============================================================================
 
 
-def _build_agent_instances(config: dict, models: dict) -> list[AgentInstanceConfig]:
-    """Build agent instance configurations for critic-actor architecture.
-
-    Args:
-        config: Configuration dictionary
-        models: Model configuration
-
-    Returns:
-        list: List of AgentInstanceConfig for actor and critic roles
-    """
+def build_agent_instances(config: dict) -> list[AgentInstanceConfig]:
+    """定制点 2: 定义智能体实例"""
+    models = config.get("models", {})
     return [
         AgentInstanceConfig(
             name="content_creator",
@@ -59,129 +40,14 @@ def _build_agent_instances(config: dict, models: dict) -> list[AgentInstanceConf
     ]
 
 
-async def run_content_optimization(config: dict) -> dict:
-    """Run marketing content optimization using Critic-Actor architecture.
-
-    Uses two-layer prompt composition:
-    - Framework layer: Generic actor/critic role capabilities (from architecture)
-    - Business layer: Marketing-specific context and Skills (from prompts_dir)
-
-    Args:
-        config: Configuration dictionary
-
-    Returns:
-        dict: Optimization result with content, scores, and history
-    """
+def build_prompt(config: dict) -> str:
+    """定制点 3: 构建任务提示词"""
     content_config = config["content"]
     brand_config = config["brand"]
     evaluation_config = config["evaluation"]
     iteration_config = config["iteration"]
-    models = config.get("models", {})
 
-    logger.info("Starting marketing content optimization...")
-    logger.info(f"Content type: {content_config['type']}")
-    logger.info(f"Max iterations: {iteration_config['max_iterations']}")
-    logger.info(f"Quality threshold: {iteration_config['quality_threshold']}")
-
-    # Build critic-actor prompt
-    prompt = _build_critic_actor_prompt(
-        content_config, brand_config, evaluation_config, iteration_config
-    )
-
-    # Business prompts directory (contains business-specific context)
-    prompts_dir = Path(__file__).parent / "prompts"
-
-    # Template variables for prompt customization
-    template_vars = {
-        "brand_name": config.get("brand_name", "Brand Name"),
-        "target_audience": config.get("target_audience", "Target Audience"),
-        "content_type": content_config.get("type", "blog post"),
-        "brand_voice": brand_config.get("voice", "professional"),
-    }
-
-    # Build agent instances based on roles
-    agent_instances = _build_agent_instances(config, models)
-    logger.info(f"Created {len(agent_instances)} agent instances (actor + critic)")
-
-    # Create session with two-layer prompt composition:
-    # - Framework prompts: Generic role capabilities (from critic_actor architecture)
-    # - Business prompts: Marketing-specific context and Skills (from prompts_dir)
-    session = create_session(
-        "critic_actor",
-        model=models.get("lead", "sonnet"),
-        agent_instances=agent_instances,
-        prompts_dir=prompts_dir,
-        template_vars=template_vars,
-        verbose=False,
-    )
-
-    results = []
-    async for msg in session.run(prompt):
-        logger.info(f"Progress: {msg}")
-        content = extract_message_content(msg)
-        if content:
-            results.append(content)
-
-    await session.teardown()
-
-    # Parse results
-    final_content, iterations, final_score = _parse_optimization_results(results)
-
-    # Generate A/B variants if enabled
-    variants = []
-    if config.get("ab_testing", {}).get("enabled", False):
-        num_variants = config["ab_testing"].get("num_variants", 2)
-        logger.info(f"Generating {num_variants} A/B test variants...")
-        variants = await _generate_ab_variants(
-            final_content, content_config, brand_config, num_variants, models
-        )
-
-    # Build result
-    result = {
-        "title": "Marketing Content Optimization Report",
-        "summary": _generate_summary(iterations, final_score, content_config),
-        "content_type": content_config["type"],
-        "final_content": final_content,
-        "final_score": final_score,
-        "iterations": iterations,
-        "ab_variants": variants,
-        "metadata": {
-            "timestamp": datetime.utcnow().isoformat(),
-            "num_iterations": len(iterations),
-            "quality_threshold": iteration_config["quality_threshold"],
-            "target_length": content_config.get("target_length", {}),
-            "keywords": content_config.get("keywords", []),
-        },
-    }
-
-    logger.info(f"✅ Optimization complete! Final score: {final_score}/100")
-    logger.info(f"Iterations: {len(iterations)}")
-
-    return result
-
-
-def _build_critic_actor_prompt(
-    content_config: dict,
-    brand_config: dict,
-    evaluation_config: dict,
-    iteration_config: dict,
-) -> str:
-    """Build critic-actor prompt for content optimization.
-
-    Note: Role instructions and workflow guidance are provided by the
-    business template (marketing_content). This function only generates
-    the user task description.
-
-    Args:
-        content_config: Content configuration
-        brand_config: Brand guidelines
-        evaluation_config: Evaluation criteria
-        iteration_config: Iteration settings
-
-    Returns:
-        str: Formatted prompt
-    """
-    # Format evaluation criteria
+    # 评估标准
     criteria_sections = []
     for category, details in evaluation_config.items():
         if category in ["seo", "engagement", "brand_consistency", "accuracy"]:
@@ -192,9 +58,7 @@ def _build_critic_actor_prompt(
                 f"**{category.replace('_', ' ').title()}** (Weight: {weight}%):\n{criteria_list}"
             )
 
-    evaluation_text = "\n\n".join(criteria_sections)
-
-    # Format brand guidelines
+    # 品牌指南
     brand_text = f"""
 **Brand Voice**: {brand_config["voice"]}
 **Tone Attributes**: {", ".join(brand_config["tone"])}
@@ -202,7 +66,7 @@ def _build_critic_actor_prompt(
 **Prohibited Phrases**: {", ".join(brand_config.get("prohibited_phrases", []))}
 """
 
-    # Format target length
+    # 目标长度和关键词
     target_length = content_config.get("target_length", {})
     length_text = ""
     if target_length:
@@ -211,13 +75,10 @@ def _build_critic_actor_prompt(
         if min_words and max_words:
             length_text = f"\n**Target Length**: {min_words}-{max_words} words"
 
-    # Format keywords
     keywords = content_config.get("keywords", [])
-    keywords_text = ""
-    if keywords:
-        keywords_text = f"\n**SEO Keywords**: {', '.join(keywords)}"
+    keywords_text = f"\n**SEO Keywords**: {', '.join(keywords)}" if keywords else ""
 
-    prompt = f"""Optimize marketing content using iterative Critic-Actor pattern.
+    return f"""Optimize marketing content using iterative Critic-Actor pattern.
 
 ## Content Brief
 
@@ -232,7 +93,7 @@ def _build_critic_actor_prompt(
 {brand_text}
 
 ## Evaluation Criteria
-{evaluation_text}
+{chr(10).join(criteria_sections)}
 
 ## Iteration Settings
 - Max iterations: {iteration_config["max_iterations"]}
@@ -242,260 +103,155 @@ def _build_critic_actor_prompt(
 Deliver optimized content meeting the quality threshold.
 """
 
-    return prompt
+
+def build_result(config: dict, contents: list[str], session) -> dict:
+    """定制点 4: 构建输出结果"""
+    content_config = config["content"]
+    iteration_config = config["iteration"]
+
+    # 解析结果
+    final_content, iterations, final_score = parse_optimization_results(contents)
+
+    return {
+        "title": "Marketing Content Optimization Report",
+        "summary": generate_summary(iterations, final_score, content_config),
+        "content_type": content_config["type"],
+        "final_content": final_content,
+        "final_score": final_score,
+        "iterations": iterations,
+        "metadata": {
+            "timestamp": datetime.utcnow().isoformat(),
+            "architecture": ARCHITECTURE,
+            "num_iterations": len(iterations),
+            "quality_threshold": iteration_config["quality_threshold"],
+        },
+    }
 
 
-def _parse_optimization_results(results: list[str]) -> tuple[str, list[dict], float]:
-    """Parse optimization results to extract content, iterations, and scores.
+# ============================================================================
+# 业务辅助函数
+# ============================================================================
 
-    Args:
-        results: List of result messages
 
-    Returns:
-        tuple: (final_content, iterations_list, final_score)
-    """
+def parse_optimization_results(results: list[str]) -> tuple[str, list[dict], float]:
+    """解析优化结果"""
     full_text = "\n".join(results)
-
-    # Extract iterations
     iterations = []
     iteration_blocks = full_text.split("=== ITERATION")
 
-    for block in iteration_blocks[1:]:  # Skip first split
+    for block in iteration_blocks[1:]:
         if not block.strip():
             continue
-
-        # Extract iteration number
         lines = block.split("\n")
-        iteration_num = (
-            int(lines[0].strip().split()[0]) if lines[0].strip() else len(iterations) + 1
-        )
+        iteration_num = int(lines[0].strip().split()[0]) if lines[0].strip() else len(iterations) + 1
 
-        # Extract content
         content_start = block.find("**Content**:")
         content_end = block.find("**Critic Evaluation**:")
-        content = ""
-        if content_start != -1 and content_end != -1:
-            content = block[content_start + 12 : content_end].strip()
+        content = block[content_start + 12:content_end].strip() if content_start != -1 and content_end != -1 else ""
 
-        # Extract overall score
         overall_score = 0.0
         score_match = block.find("**Overall Score**:")
         if score_match != -1:
-            score_line = block[score_match:].split("\n")[0]
-            # Extract number from "**Overall Score**: XX/100"
             try:
-                score_str = score_line.split(":")[1].split("/")[0].strip()
-                overall_score = float(score_str)
+                score_line = block[score_match:].split("\n")[0]
+                overall_score = float(score_line.split(":")[1].split("/")[0].strip())
             except (IndexError, ValueError):
                 pass
 
-        # Extract individual scores
-        scores = {}
-        for dimension in ["SEO", "Engagement", "Brand Consistency", "Accuracy"]:
-            dim_match = block.find(f"- {dimension}:")
-            if dim_match != -1:
-                dim_line = block[dim_match:].split("\n")[0]
-                try:
-                    score_str = dim_line.split(":")[1].split("/")[0].strip()
-                    scores[dimension.lower().replace(" ", "_")] = float(score_str)
-                except (IndexError, ValueError):
-                    scores[dimension.lower().replace(" ", "_")] = 0.0
+        iterations.append({"iteration": iteration_num, "content": content, "overall_score": overall_score})
 
-        iterations.append(
-            {
-                "iteration": iteration_num,
-                "content": content,
-                "overall_score": overall_score,
-                "scores": scores,
-            }
-        )
-
-    # Extract final content
     final_content = ""
     final_marker = full_text.find("=== FINAL CONTENT ===")
     if final_marker != -1:
-        final_content = full_text[final_marker + 21 :].strip()
+        final_content = full_text[final_marker + 21:].strip()
     elif iterations:
         final_content = iterations[-1]["content"]
 
-    # Final score
     final_score = iterations[-1]["overall_score"] if iterations else 0.0
-
     return final_content, iterations, final_score
 
 
-async def _generate_ab_variants(
-    base_content: str,
-    content_config: dict,
-    brand_config: dict,
-    num_variants: int,
-    models: dict,
-) -> list[dict]:
-    """Generate A/B test variants with different angles.
-
-    Args:
-        base_content: Optimized base content
-        content_config: Content configuration
-        brand_config: Brand guidelines
-        num_variants: Number of variants to generate
-        models: Model configuration
-
-    Returns:
-        list: List of variant dictionaries
-    """
-    variants = []
-
-    angles = [
-        "Feature-focused (emphasize product capabilities)",
-        "Benefit-focused (emphasize user outcomes)",
-        "Problem-solution (start with pain points)",
-        "Social proof (emphasize testimonials and adoption)",
-    ]
-
-    for i in range(min(num_variants, len(angles))):
-        angle = angles[i]
-        logger.info(f"Generating variant {i + 1} with angle: {angle}")
-
-        prompt = f"""Generate a variant of this marketing content with a different angle.
-
-**Original Content**:
-{base_content}
-
-**Variant Angle**: {angle}
-
-**Brand Guidelines**:
-- Voice: {brand_config["voice"]}
-- Tone: {", ".join(brand_config["tone"])}
-
-**Requirements**:
-- Maintain the same key information and CTA
-- Use the specified angle to differentiate
-- Keep similar length
-- Preserve brand voice and tone
-
-Provide the variant content:
-"""
-
-        session = create_session("research", model=models.get("actor", "sonnet"), verbose=False)
-        variant_text = []
-        async for msg in session.run(prompt):
-            content = extract_message_content(msg)
-            if content:
-                variant_text.append(content)
-        await session.teardown()
-
-        variants.append({"variant": i + 1, "angle": angle, "content": "\n".join(variant_text)})
-
-    return variants
-
-
-def _generate_summary(iterations: list[dict], final_score: float, content_config: dict) -> str:
-    """Generate summary of optimization process.
-
-    Args:
-        iterations: List of iteration dictionaries
-        final_score: Final overall score
-        content_config: Content configuration
-
-    Returns:
-        str: Summary text
-    """
-    num_iterations = len(iterations)
-    content_type = content_config["type"]
-
-    if num_iterations == 0:
+def generate_summary(iterations: list[dict], final_score: float, content_config: dict) -> str:
+    """生成摘要"""
+    if not iterations:
         return "No iterations completed"
-
     initial_score = iterations[0]["overall_score"]
     improvement = final_score - initial_score
-
-    summary = f"""Optimized {content_type} through {num_iterations} iteration(s).
-Initial score: {initial_score}/100
-Final score: {final_score}/100
-Improvement: +{improvement:.1f} points"""
-
-    return summary
+    return f"Optimized {content_config['type']} through {len(iterations)} iteration(s). Initial: {initial_score}/100, Final: {final_score}/100, Improvement: +{improvement:.1f}"
 
 
-def main():
-    """Main entry point."""
-    parser = argparse.ArgumentParser(description="Marketing Content Optimization")
-    parser.add_argument("--config", type=str, default="config.yaml", help="Configuration file path")
-    parser.add_argument(
-        "--output-format",
-        type=str,
-        choices=["json", "markdown", "pdf"],
-        help="Output format (overrides config)",
+# ============================================================================
+# 公共主线 (所有示例相同)
+# ============================================================================
+
+
+def load_config() -> dict:
+    """加载 YAML 配置文件"""
+    config_path = Path(__file__).parent / "config.yaml"
+    with open(config_path, encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
+def save_result(result: dict, filename: str) -> Path:
+    """保存结果为 JSON 文件"""
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    output_path = OUTPUT_DIR / f"{filename}.json"
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(result, f, indent=2, ensure_ascii=False)
+    return output_path
+
+
+def extract_content(msg) -> str | None:
+    """从 SDK 消息中提取文本内容"""
+    if hasattr(msg, "result"):
+        return msg.result
+    if hasattr(msg, "content"):
+        texts = [b.text for b in msg.content if hasattr(b, "text")]
+        return "\n".join(texts) if texts else None
+    return None
+
+
+async def run_task(config: dict) -> dict:
+    """执行任务的标准流程"""
+    prompt = build_prompt(config)
+    agent_instances = build_agent_instances(config)
+    models = config.get("models", {})
+
+    session = create_session(
+        ARCHITECTURE,
+        model=models.get("lead", "sonnet"),
+        agent_instances=agent_instances,
+        prompts_dir=Path(__file__).parent / "prompts",
+        template_vars=config.get("template_vars", {}),
+        verbose=False,
     )
-    parser.add_argument("--output-file", type=str, help="Output file path (overrides config)")
-    parser.add_argument(
-        "--log-level",
-        type=str,
-        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
-        help="Logging level",
-    )
 
-    args = parser.parse_args()
-
+    contents = []
     try:
-        # Load configuration
-        config_path = Path(args.config)
-        config = load_yaml_config(config_path)
+        async for msg in session.run(prompt):
+            if content := extract_content(msg):
+                contents.append(content)
+    finally:
+        await session.teardown()
 
-        # Validate required fields
-        required_fields = ["architecture", "content", "brand", "evaluation", "iteration", "output"]
-        validate_config(config, required_fields)
+    return build_result(config, contents, session)
 
-        # Validate architecture
-        if config["architecture"] != "critic_actor":
-            raise ConfigurationError(
-                f"Invalid architecture '{config['architecture']}'. Expected 'critic_actor'."
-            )
 
-        # Setup logging
-        log_config = config.get("logging", {})
-        log_level = args.log_level or log_config.get("level", "INFO")
-        log_file = log_config.get("file")
-        if log_file:
-            log_file = Path(log_file)
-            log_file.parent.mkdir(parents=True, exist_ok=True)
+async def main():
+    """入口函数"""
+    try:
+        config = load_config()
+        result = await run_task(config)
 
-        setup_logging(level=log_level, log_file=log_file)
+        output_path = save_result(result, f"{ARCHITECTURE}_result")
 
-        # Run optimization
-        result = asyncio.run(run_content_optimization(config))
+        print(f"✅ Complete! Output: {output_path}")
+        print(f"📊 Summary: {result.get('summary', 'N/A')}")
 
-        # Save result
-        output_config = config["output"]
-        output_dir = Path(output_config["directory"])
-        output_format = args.output_format or output_config.get("format", "markdown")
-
-        saver = ResultSaver(output_dir)
-        output_file = args.output_file
-        if output_file:
-            output_file = Path(output_file).stem
-
-        output_path = saver.save(result, format=output_format, filename=output_file)
-
-        print("\n✅ Optimization complete!")
-        print(f"📄 Output saved to: {output_path}")
-        print(f"📊 Final score: {result['final_score']}/100")
-        print(f"🔄 Iterations: {result['metadata']['num_iterations']}")
-
-        if result.get("ab_variants"):
-            print(f"🧪 Generated {len(result['ab_variants'])} A/B test variants")
-
-    except ConfigurationError as e:
-        print(f"❌ Configuration Error: {e}", file=sys.stderr)
-        sys.exit(1)
-    except ExecutionError as e:
-        print(f"❌ Execution Error: {e}", file=sys.stderr)
-        sys.exit(2)
     except Exception as e:
-        print(f"❌ Unexpected Error: {e}", file=sys.stderr)
-        logger.exception("Unexpected error occurred")
-        sys.exit(3)
+        print(f"❌ Error: {e}")
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

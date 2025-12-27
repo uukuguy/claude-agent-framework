@@ -1,85 +1,35 @@
-"""IT Support Platform Example.
+#!/usr/bin/env python3
+"""IT 技术支持 - 使用 Specialist Pool 架构的示例"""
 
-This example demonstrates using the Specialist Pool architecture to route
-technical support issues to appropriate specialist agents based on keywords
-and domain expertise.
-"""
-
-import argparse
 import asyncio
-import logging
-import sys
+import json
 from datetime import datetime
 from pathlib import Path
 
-# Add parent directories to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from common import (
-    ConfigurationError,
-    ExecutionError,
-    ResultSaver,
-    extract_message_content,
-    load_yaml_config,
-    setup_logging,
-    validate_config,
-)
+import yaml
 
 from claude_agent_framework import create_session
 from claude_agent_framework.core.roles import AgentInstanceConfig
 
-logger = logging.getLogger(__name__)
+# ============================================================================
+# 业务配置 (定制点 1)
+# ============================================================================
+
+ARCHITECTURE = "specialist_pool"
+OUTPUT_DIR = Path(__file__).parent / "outputs"
+
+# ============================================================================
+# 业务定制函数 (定制点 2-4)
+# ============================================================================
 
 
-async def run_it_support(config: dict, issue_title: str, issue_description: str) -> dict:
-    """Run IT support issue resolution using Specialist Pool architecture.
-
-    Args:
-        config: Configuration dictionary
-        issue_title: Issue title
-        issue_description: Detailed issue description
-
-    Returns:
-        dict: Support resolution result
-    """
-    specialists_config = config["specialists"]
-    routing_config = config["routing"]
-    categorization_config = config.get("categorization", {})
-    response_template = config.get("response_template", {})
+def build_agent_instances(config: dict) -> list[AgentInstanceConfig]:
+    """定制点 2: 定义智能体实例"""
     models = config.get("models", {})
+    issue_data = config.get("_issue_data", {})
+    selected_specialists = issue_data.get("specialists", [])
 
-    logger.info(f"Processing IT support issue: {issue_title}")
-
-    # Categorize urgency
-    urgency, sla_hours = _categorize_urgency(issue_title, issue_description, categorization_config)
-    logger.info(f"Issue urgency: {urgency} (SLA: {sla_hours}h)")
-
-    # Route to appropriate specialists
-    selected_specialists = _route_to_specialists(
-        issue_title, issue_description, specialists_config, routing_config
-    )
-
-    if not selected_specialists:
-        logger.warning("No specialists matched. Using fallback.")
-        selected_specialists = [_get_fallback_specialist(specialists_config)]
-
-    logger.info(
-        f"Routed to {len(selected_specialists)} specialist(s): {[s['name'] for s in selected_specialists]}"
-    )
-
-    # Build specialist pool prompt
-    prompt = _build_specialist_pool_prompt(
-        issue_title,
-        issue_description,
-        selected_specialists,
-        urgency,
-        sla_hours,
-        response_template,
-    )
-
-    # Build agent instances from selected specialists
-    agent_instances = [
+    return [
         AgentInstanceConfig(
             name=specialist["name"],
             role="specialist",
@@ -89,195 +39,20 @@ async def run_it_support(config: dict, issue_title: str, issue_description: str)
         for specialist in selected_specialists
     ]
 
-    # Run specialist pool architecture with agent instances
-    session = create_session(
-        "specialist_pool",
-        model=models.get("lead", "sonnet"),
-        agent_instances=agent_instances,
-        lead_agent_prompt=str(Path(__file__).parent / "prompts" / "lead_agent.txt"),
-        template_vars={
-            "organization": config.get("organization", "Organization"),
-            "support_level": config.get("support_level", "Tier 1"),
-            "sla_priority": config.get("sla_priority", "standard"),
-        },
-        setting_sources=["user", "project"],
-        verbose=False,
-    )
 
-    results = []
-    async for msg in session.run(prompt):
-        logger.info(f"Progress: {msg}")
-        content = extract_message_content(msg)
-        if content:
-            results.append(content)
+def build_prompt(config: dict) -> str:
+    """定制点 3: 构建任务提示词"""
+    issue_data = config.get("_issue_data", {})
+    response_template = config.get("response_template", {})
 
-    await session.teardown()
+    title = issue_data.get("title", "")
+    description = issue_data.get("description", "")
+    urgency = issue_data.get("urgency", "medium")
+    sla_hours = issue_data.get("sla_hours", 24)
+    specialists = issue_data.get("specialists", [])
 
-    # Parse specialist responses
-    specialist_responses = _parse_specialist_responses(results, selected_specialists)
+    specialist_list = "\n".join(f"- **{s['name']}**: {s['description']}" for s in specialists)
 
-    # Generate consolidated solution (pass results too for extraction)
-    consolidated_solution = _consolidate_solutions(specialist_responses, results)
-
-    # Build result
-    result = {
-        "title": f"IT Support Resolution: {issue_title}",
-        "summary": _generate_summary(urgency, selected_specialists, consolidated_solution),
-        "issue": {
-            "title": issue_title,
-            "description": issue_description,
-            "urgency": urgency,
-            "sla_hours": sla_hours,
-        },
-        "routing": {
-            "specialists": [s["name"] for s in selected_specialists],
-            "routing_strategy": routing_config.get("strategy", "keyword_match"),
-        },
-        "specialist_responses": specialist_responses,
-        "consolidated_solution": consolidated_solution,
-        "metadata": {
-            "timestamp": datetime.utcnow().isoformat(),
-            "num_specialists": len(selected_specialists),
-            "urgency": urgency,
-            "sla_hours": sla_hours,
-        },
-    }
-
-    logger.info("✅ Support resolution complete!")
-    logger.info(f"Specialists consulted: {len(selected_specialists)}")
-
-    return result
-
-
-def _categorize_urgency(
-    title: str, description: str, categorization_config: dict
-) -> tuple[str, int]:
-    """Categorize issue urgency based on keywords.
-
-    Args:
-        title: Issue title
-        description: Issue description
-        categorization_config: Categorization configuration
-
-    Returns:
-        tuple: (urgency_level, sla_hours)
-    """
-    text = f"{title} {description}".lower()
-
-    urgency_levels = categorization_config.get("urgency_levels", [])
-
-    for level in urgency_levels:
-        keywords = level.get("keywords", [])
-        if any(keyword.lower() in text for keyword in keywords):
-            return level["name"], level["sla_hours"]
-
-    # Default to medium
-    return "medium", 24
-
-
-def _route_to_specialists(
-    title: str, description: str, specialists_config: list[dict], routing_config: dict
-) -> list[dict]:
-    """Route issue to appropriate specialists based on keywords.
-
-    Args:
-        title: Issue title
-        description: Issue description
-        specialists_config: List of specialist configurations
-        routing_config: Routing configuration
-
-    Returns:
-        list: Selected specialists
-    """
-    text = f"{title} {description}".lower()
-    min_matches = routing_config.get("min_keyword_matches", 1)
-    allow_multiple = routing_config.get("allow_multiple", True)
-    max_specialists = routing_config.get("max_specialists", 3)
-
-    # Calculate match scores for each specialist
-    specialist_scores = []
-
-    for specialist in specialists_config:
-        # Skip fallback specialist (has lowest priority)
-        if specialist.get("priority", 5) >= 5:
-            continue
-
-        keywords = specialist.get("keywords", [])
-        matches = sum(1 for keyword in keywords if keyword.lower() in text)
-
-        if matches >= min_matches:
-            specialist_scores.append(
-                {
-                    "specialist": specialist,
-                    "matches": matches,
-                    "priority": specialist.get("priority", 5),
-                }
-            )
-
-    # Sort by matches (descending) then priority (ascending)
-    specialist_scores.sort(key=lambda x: (-x["matches"], x["priority"]))
-
-    # Select specialists
-    if not allow_multiple:
-        selected = specialist_scores[:1]
-    else:
-        selected = specialist_scores[:max_specialists]
-
-    return [item["specialist"] for item in selected]
-
-
-def _get_fallback_specialist(specialists_config: list[dict]) -> dict:
-    """Get fallback specialist (lowest priority).
-
-    Args:
-        specialists_config: List of specialist configurations
-
-    Returns:
-        dict: Fallback specialist
-    """
-    fallback = None
-    lowest_priority = 0
-
-    for specialist in specialists_config:
-        priority = specialist.get("priority", 5)
-        if priority >= lowest_priority:
-            lowest_priority = priority
-            fallback = specialist
-
-    return fallback or specialists_config[0]
-
-
-def _build_specialist_pool_prompt(
-    title: str,
-    description: str,
-    specialists: list[dict],
-    urgency: str,
-    sla_hours: int,
-    response_template: dict,
-) -> str:
-    """Build specialist pool prompt for issue resolution.
-
-    Note: Role instructions and workflow guidance are provided by the
-    business template (it_support). This function only generates
-    the user task description.
-
-    Args:
-        title: Issue title
-        description: Issue description
-        specialists: Selected specialists
-        urgency: Urgency level
-        sla_hours: SLA hours
-        response_template: Response template configuration
-
-    Returns:
-        str: Formatted prompt
-    """
-    # Format specialist list
-    specialist_list = "\n".join(
-        f"- **{spec['name']}**: {spec['description']}" for spec in specialists
-    )
-
-    # Response requirements
     requirements = []
     if response_template.get("include_diagnosis", True):
         requirements.append("Root cause diagnosis")
@@ -285,12 +60,8 @@ def _build_specialist_pool_prompt(
         requirements.append("Step-by-step resolution steps")
     if response_template.get("include_prevention", True):
         requirements.append("Prevention recommendations")
-    if response_template.get("include_escalation", False):
-        requirements.append("Escalation criteria")
 
-    requirements_text = "\n".join(f"- {req}" for req in requirements)
-
-    prompt = f"""Resolve an IT support issue.
+    return f"""Resolve an IT support issue.
 
 ## Issue Details
 
@@ -305,236 +76,214 @@ def _build_specialist_pool_prompt(
 {specialist_list}
 
 ## Required Response Components
-{requirements_text}
+{chr(10).join(f"- {req}" for req in requirements)}
 
 Provide specialist analysis and a consolidated solution with actionable steps.
 """
 
-    return prompt
+
+def build_result(config: dict, contents: list[str], session) -> dict:
+    """定制点 4: 构建输出结果"""
+    issue_data = config.get("_issue_data", {})
+    routing_config = config.get("routing", {})
+    specialists = issue_data.get("specialists", [])
+
+    # 解析专家响应
+    specialist_responses = parse_specialist_responses(contents, specialists)
+    consolidated = extract_consolidated_solution(contents)
+
+    return {
+        "title": f"IT Support Resolution: {issue_data.get('title', '')}",
+        "summary": f"Issue resolved with {issue_data.get('urgency', 'medium')} urgency. Consulted {len(specialists)} specialist(s).",
+        "issue": {
+            "title": issue_data.get("title", ""),
+            "description": issue_data.get("description", ""),
+            "urgency": issue_data.get("urgency", "medium"),
+            "sla_hours": issue_data.get("sla_hours", 24),
+        },
+        "routing": {
+            "specialists": [s["name"] for s in specialists],
+            "strategy": routing_config.get("strategy", "keyword_match"),
+        },
+        "specialist_responses": specialist_responses,
+        "consolidated_solution": consolidated,
+        "metadata": {
+            "timestamp": datetime.utcnow().isoformat(),
+            "architecture": ARCHITECTURE,
+            "num_specialists": len(specialists),
+        },
+    }
 
 
-def _parse_specialist_responses(results: list[str], specialists: list[dict]) -> list[dict]:
-    """Parse specialist responses from results.
+# ============================================================================
+# 业务辅助函数
+# ============================================================================
 
-    Args:
-        results: List of result messages
-        specialists: List of specialists
 
-    Returns:
-        list: Parsed specialist responses
-    """
+def categorize_urgency(title: str, description: str, config: dict) -> tuple[str, int]:
+    """分类紧急程度"""
+    text = f"{title} {description}".lower()
+    urgency_levels = config.get("categorization", {}).get("urgency_levels", [])
+
+    for level in urgency_levels:
+        if any(kw.lower() in text for kw in level.get("keywords", [])):
+            return level["name"], level["sla_hours"]
+    return "medium", 24
+
+
+def route_to_specialists(title: str, description: str, config: dict) -> list[dict]:
+    """路由到专家"""
+    text = f"{title} {description}".lower()
+    specialists_config = config.get("specialists", [])
+    routing = config.get("routing", {})
+    min_matches = routing.get("min_keyword_matches", 1)
+    max_specialists = routing.get("max_specialists", 3)
+
+    scored = []
+    for spec in specialists_config:
+        if spec.get("priority", 5) >= 5:
+            continue
+        matches = sum(1 for kw in spec.get("keywords", []) if kw.lower() in text)
+        if matches >= min_matches:
+            scored.append({"specialist": spec, "matches": matches, "priority": spec.get("priority", 5)})
+
+    scored.sort(key=lambda x: (-x["matches"], x["priority"]))
+    selected = [item["specialist"] for item in scored[:max_specialists]]
+
+    if not selected and specialists_config:
+        # Fallback
+        fallback = max(specialists_config, key=lambda s: s.get("priority", 0))
+        selected = [fallback]
+
+    return selected
+
+
+def parse_specialist_responses(results: list[str], specialists: list[dict]) -> list[dict]:
+    """解析专家响应"""
     full_text = "\n".join(results)
     responses = []
 
-    for specialist in specialists:
-        name = specialist["name"]
-
-        # Find specialist section
-        marker = f"### {name}"
-        start = full_text.find(marker)
-
-        if start == -1:
-            # Try alternative format
-            marker = f"**{name}**"
+    for spec in specialists:
+        name = spec["name"]
+        for marker in [f"### {name}", f"**{name}**"]:
             start = full_text.find(marker)
+            if start != -1:
+                end = len(full_text)
+                for other in specialists:
+                    if other["name"] != name:
+                        pos = full_text.find(f"### {other['name']}", start + 1)
+                        if pos != -1 and pos < end:
+                            end = pos
+                consol_pos = full_text.find("### Consolidated", start + 1)
+                if consol_pos != -1 and consol_pos < end:
+                    end = consol_pos
 
-        if start != -1:
-            # Extract until next specialist or consolidated solution
-            end = len(full_text)
-            for other_spec in specialists:
-                if other_spec["name"] != name:
-                    other_marker = f"### {other_spec['name']}"
-                    other_pos = full_text.find(other_marker, start + 1)
-                    if other_pos != -1 and other_pos < end:
-                        end = other_pos
-
-            # Also check for consolidated solution
-            consol_marker = "### Consolidated Solution"
-            consol_pos = full_text.find(consol_marker, start + 1)
-            if consol_pos != -1 and consol_pos < end:
-                end = consol_pos
-
-            response_text = full_text[start:end].strip()
-
-            # Extract confidence if present
-            confidence = "Medium"
-            if "Confidence**: High" in response_text or "Confidence: High" in response_text:
-                confidence = "High"
-            elif "Confidence**: Low" in response_text or "Confidence: Low" in response_text:
-                confidence = "Low"
-
-            responses.append(
-                {
-                    "specialist": name,
-                    "response": response_text,
-                    "confidence": confidence,
-                }
-            )
+                responses.append({"specialist": name, "response": full_text[start:end].strip()})
+                break
 
     return responses
 
 
-def _consolidate_solutions(specialist_responses: list[dict], results: list[str]) -> str:
-    """Extract consolidated solution from responses.
-
-    Args:
-        specialist_responses: List of specialist responses
-        results: Original result messages
-
-    Returns:
-        str: Consolidated solution text
-    """
-    # First, try to find in the full results text
-    all_results_text = "\n".join(results)
+def extract_consolidated_solution(results: list[str]) -> str:
+    """提取综合解决方案"""
+    full_text = "\n".join(results)
     marker = "### Consolidated Solution"
-    start = all_results_text.find(marker)
-    if start != -1:
-        return all_results_text[start:].strip()
-
-    # Look for consolidated solution in specialist responses
-    for response in specialist_responses:
-        text = response.get("response", "")
-        if "Consolidated Solution" in text:
-            start = text.find(marker)
-            if start != -1:
-                return text[start:].strip()
-
-    return "Consolidated solution not generated. Please review individual specialist responses."
+    start = full_text.find(marker)
+    return full_text[start:].strip() if start != -1 else "See individual specialist responses."
 
 
-def _generate_summary(urgency: str, specialists: list[dict], consolidated_solution: str) -> str:
-    """Generate summary of support resolution.
-
-    Args:
-        urgency: Urgency level
-        specialists: List of specialists consulted
-        consolidated_solution: Consolidated solution
-
-    Returns:
-        str: Summary text
-    """
-    num_specialists = len(specialists)
-    specialist_names = ", ".join(s["name"] for s in specialists)
-
-    summary = f"""IT support issue resolved with {urgency} urgency.
-Consulted {num_specialists} specialist(s): {specialist_names}.
-Consolidated solution provided with actionable steps."""
-
-    return summary
+# ============================================================================
+# 公共主线 (所有示例相同)
+# ============================================================================
 
 
-def main():
-    """Main entry point."""
-    parser = argparse.ArgumentParser(description="IT Support Platform")
-    parser.add_argument("--config", type=str, default="config.yaml", help="Configuration file path")
-    parser.add_argument("--title", type=str, help="Issue title")
-    parser.add_argument("--description", type=str, help="Issue description")
-    parser.add_argument(
-        "--output-format",
-        type=str,
-        choices=["json", "markdown", "pdf"],
-        help="Output format (overrides config)",
+def load_config() -> dict:
+    """加载 YAML 配置文件"""
+    config_path = Path(__file__).parent / "config.yaml"
+    with open(config_path, encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
+def save_result(result: dict, filename: str) -> Path:
+    """保存结果为 JSON 文件"""
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    output_path = OUTPUT_DIR / f"{filename}.json"
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(result, f, indent=2, ensure_ascii=False)
+    return output_path
+
+
+def extract_content(msg) -> str | None:
+    """从 SDK 消息中提取文本内容"""
+    if hasattr(msg, "result"):
+        return msg.result
+    if hasattr(msg, "content"):
+        texts = [b.text for b in msg.content if hasattr(b, "text")]
+        return "\n".join(texts) if texts else None
+    return None
+
+
+async def run_task(config: dict) -> dict:
+    """执行任务的标准流程"""
+    # 业务特定: 从示例问题获取输入
+    example_issues = config.get("example_issues", [])
+    if example_issues:
+        issue = example_issues[0]
+        title, description = issue["title"], issue["description"]
+    else:
+        title, description = "General IT Issue", "Please provide issue details in config."
+
+    # 路由和分类
+    urgency, sla_hours = categorize_urgency(title, description, config)
+    specialists = route_to_specialists(title, description, config)
+
+    config["_issue_data"] = {
+        "title": title,
+        "description": description,
+        "urgency": urgency,
+        "sla_hours": sla_hours,
+        "specialists": specialists,
+    }
+
+    prompt = build_prompt(config)
+    agent_instances = build_agent_instances(config)
+    models = config.get("models", {})
+
+    session = create_session(
+        ARCHITECTURE,
+        model=models.get("lead", "sonnet"),
+        agent_instances=agent_instances,
+        prompts_dir=Path(__file__).parent / "prompts",
+        template_vars=config.get("template_vars", {}),
+        verbose=False,
     )
-    parser.add_argument("--output-file", type=str, help="Output file path (overrides config)")
-    parser.add_argument(
-        "--log-level",
-        type=str,
-        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
-        help="Logging level",
-    )
-    parser.add_argument(
-        "--use-example",
-        type=int,
-        help="Use example issue from config (0-based index)",
-    )
 
-    args = parser.parse_args()
-
+    contents = []
     try:
-        # Load configuration
-        config_path = Path(args.config)
-        config = load_yaml_config(config_path)
+        async for msg in session.run(prompt):
+            if content := extract_content(msg):
+                contents.append(content)
+    finally:
+        await session.teardown()
 
-        # Validate required fields
-        required_fields = ["architecture", "specialists", "routing", "output"]
-        validate_config(config, required_fields)
+    return build_result(config, contents, session)
 
-        # Validate architecture
-        if config["architecture"] != "specialist_pool":
-            raise ConfigurationError(
-                f"Invalid architecture '{config['architecture']}'. Expected 'specialist_pool'."
-            )
 
-        # Setup logging
-        log_config = config.get("logging", {})
-        log_level = args.log_level or log_config.get("level", "INFO")
-        log_file = log_config.get("file")
-        if log_file:
-            log_file = Path(log_file)
-            log_file.parent.mkdir(parents=True, exist_ok=True)
+async def main():
+    """入口函数"""
+    try:
+        config = load_config()
+        result = await run_task(config)
 
-        setup_logging(level=log_level, log_file=log_file)
+        output_path = save_result(result, f"{ARCHITECTURE}_result")
 
-        # Get issue details
-        if args.use_example is not None:
-            example_issues = config.get("example_issues", [])
-            if 0 <= args.use_example < len(example_issues):
-                example = example_issues[args.use_example]
-                issue_title = example["title"]
-                issue_description = example["description"]
-                logger.info(f"Using example issue #{args.use_example}: {issue_title}")
-            else:
-                raise ConfigurationError(
-                    f"Example index {args.use_example} out of range (0-{len(example_issues) - 1})"
-                )
-        elif args.title and args.description:
-            issue_title = args.title
-            issue_description = args.description
-        else:
-            # Use first example if no input provided
-            example_issues = config.get("example_issues", [])
-            if example_issues:
-                example = example_issues[0]
-                issue_title = example["title"]
-                issue_description = example["description"]
-                logger.info(f"Using default example: {issue_title}")
-            else:
-                raise ConfigurationError(
-                    "No issue provided. Use --title and --description, or --use-example"
-                )
+        print(f"✅ Complete! Output: {output_path}")
+        print(f"📊 Summary: {result.get('summary', 'N/A')}")
 
-        # Run IT support
-        result = asyncio.run(run_it_support(config, issue_title, issue_description))
-
-        # Save result
-        output_config = config["output"]
-        output_dir = Path(output_config["directory"])
-        output_format = args.output_format or output_config.get("format", "markdown")
-
-        saver = ResultSaver(output_dir)
-        output_file = args.output_file
-        if output_file:
-            output_file = Path(output_file).stem
-
-        output_path = saver.save(result, format=output_format, filename=output_file)
-
-        print("\n✅ IT support resolution complete!")
-        print(f"📄 Output saved to: {output_path}")
-        print(f"🔧 Specialists consulted: {result['metadata']['num_specialists']}")
-        print(f"⚡ Urgency: {result['metadata']['urgency'].upper()}")
-        print(f"⏰ SLA: {result['metadata']['sla_hours']} hours")
-
-    except ConfigurationError as e:
-        print(f"❌ Configuration Error: {e}", file=sys.stderr)
-        sys.exit(1)
-    except ExecutionError as e:
-        print(f"❌ Execution Error: {e}", file=sys.stderr)
-        sys.exit(2)
     except Exception as e:
-        print(f"❌ Unexpected Error: {e}", file=sys.stderr)
-        logger.exception("Unexpected error occurred")
-        sys.exit(3)
+        print(f"❌ Error: {e}")
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
