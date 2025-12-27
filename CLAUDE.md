@@ -29,6 +29,18 @@ The framework solves the problem of complex tasks requiring multiple specialized
 - **Bilingual Documentation Required**: README and BEST_PRACTICES must have both English and Chinese versions (README.md/README_CN.md, BEST_PRACTICES.md/BEST_PRACTICES_CN.md)
 - **Documentation Sync**: When major features are added or modified, all related documentation files must be updated synchronously
 
+## Skills Support
+
+**Skills are a built-in feature of Claude Agent SDK**, not a custom implementation of this framework.
+
+- **Reference**: https://platform.claude.com/docs/en/agent-sdk/skills
+- **Mechanism**: Skills are filesystem artifacts (`.claude/skills/*/SKILL.md`) automatically discovered and invoked by Claude
+- **Loading**: Configured via `setting_sources=["user", "project"]` in SDK options
+- **Enabling**: Add `"Skill"` to `allowed_tools` configuration
+- **Difference from business_templates**:
+  - `business_templates`: Framework-level prompt composition for agent system prompts
+  - `Skills`: SDK-level capability extension, model-invoked based on context
+
 ## Development Workflow
 
 ### Git Commit Strategy

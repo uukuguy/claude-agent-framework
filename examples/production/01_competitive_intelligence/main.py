@@ -57,17 +57,41 @@ async def run_competitive_intelligence(config: dict) -> dict:
             f"Starting competitive intelligence analysis for {len(competitors)} competitors"
         )
 
-        # Initialize session with Research architecture and business template
-        session = create_session(
-            "research",
-            model=models.get("lead", "sonnet"),
-            business_template=config.get("business_template", "competitive_intelligence"),
-            template_vars={
-                "company_name": config.get("company_name", "Our Company"),
-                "industry": config.get("industry", "Technology"),
-            },
-            verbose=False,
-        )
+        # Determine prompt mode and configure session accordingly
+        prompt_mode = config.get("prompt_mode", "templates")
+        prompts_dir = Path(__file__).parent / "prompts" / prompt_mode
+
+        # Template variables for prompt customization
+        template_vars = {
+            "company_name": config.get("company_name", "Our Company"),
+            "industry": config.get("industry", "Technology"),
+        }
+
+        logger.info(f"Using prompt mode: {prompt_mode}")
+
+        if prompt_mode == "templates":
+            # Templates mode: local overrides + framework business_template fallback
+            session = create_session(
+                "research",
+                model=models.get("lead", "sonnet"),
+                business_template=config.get("business_template", "competitive_intelligence"),
+                prompts_dir=prompts_dir if prompts_dir.exists() else None,
+                template_vars=template_vars,
+                verbose=False,
+            )
+        else:
+            # Skills mode: use local prompts only (no business_template fallback)
+            if not prompts_dir.exists():
+                raise ExecutionError(
+                    f"Skills mode requires prompts directory: {prompts_dir}"
+                )
+            session = create_session(
+                "research",
+                model=models.get("lead", "sonnet"),
+                prompts_dir=prompts_dir,
+                template_vars=template_vars,
+                verbose=False,
+            )
 
         # Run analysis
         results = []
@@ -106,9 +130,11 @@ def _build_analysis_prompt(competitors: list[dict], dimensions: list[str]) -> st
     """
     Build analysis prompt for the research architecture.
 
-    Note: Role instructions and workflow guidance are provided by the
-    business template (competitive_intelligence). This function only
-    generates the user task description.
+    Note: Role instructions and workflow guidance are provided by either:
+    - Templates mode: business template (competitive_intelligence) with optional local overrides
+    - Skills mode: local prompts that guide agents to use Skills for methodology
+
+    This function only generates the user task description.
 
     Args:
         competitors: List of competitor configurations
