@@ -145,7 +145,7 @@ outputs/
 logs/
 baselines/
 github.com/
-files/
+files*/
 
 # UV package manager
 uv.lock
