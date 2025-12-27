@@ -17,11 +17,12 @@ from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient, HookMatcher
 
 from claude_agent_framework.architectures.pipeline.config import PipelineConfig
 from claude_agent_framework.core.base import (
-    AgentDefinitionConfig,
     AgentModelConfig,
     BaseArchitecture,
 )
 from claude_agent_framework.core.registry import register_architecture
+from claude_agent_framework.core.roles import AgentInstanceConfig, RoleDefinition
+from claude_agent_framework.core.types import RoleCardinality, RoleType
 
 if TYPE_CHECKING:
     from claude_agent_framework.utils import SubagentTracker, TranscriptWriter
@@ -33,15 +34,21 @@ class PipelineArchitecture(BaseArchitecture):
     Pipeline architecture for sequential processing.
 
     Pattern: Sequential Stage Processing
-    - Architect: Design implementation approach
-    - Coder: Implement the design
-    - Reviewer: Code quality review
-    - Tester: Write and run tests
+    - Stage executors: Process stages in sequence (1+ agents)
+
+    Role Definitions:
+        stage: Execute a pipeline stage (required, 1+)
 
     Each stage's output becomes input for the next.
 
     Usage:
-        arch = PipelineArchitecture()
+        agents = [
+            AgentInstanceConfig(name="architect", role="stage", ...),
+            AgentInstanceConfig(name="coder", role="stage", ...),
+            AgentInstanceConfig(name="reviewer", role="stage", ...),
+            AgentInstanceConfig(name="tester", role="stage", ...),
+        ]
+        arch = PipelineArchitecture(agent_instances=agents)
         async for msg in arch.execute("Implement user authentication"):
             print(msg)
     """
@@ -56,6 +63,8 @@ class PipelineArchitecture(BaseArchitecture):
         prompts_dir: Path | None = None,
         files_dir: Path | None = None,
         stages: list[str] | None = None,
+        # Role-based configuration
+        agent_instances: list[AgentInstanceConfig] | None = None,
         # Business template and prompt customization
         business_template: str | None = None,
         custom_prompts_dir: Path | str | None = None,
@@ -71,6 +80,7 @@ class PipelineArchitecture(BaseArchitecture):
             prompts_dir: Custom prompts directory
             files_dir: Custom files directory
             stages: Custom stage names (uses config stages if None)
+            agent_instances: List of agent instance configurations (role-based)
             business_template: Name of business template to use (optional)
             custom_prompts_dir: Application-level custom prompts directory (optional)
             prompt_overrides: Dict of agent_name -> override prompt content
@@ -91,6 +101,7 @@ class PipelineArchitecture(BaseArchitecture):
             model_config=model_config,
             prompts_dir=prompts_dir,
             files_dir=files_dir,
+            agent_instances=agent_instances,
             business_template=business_template,
             custom_prompts_dir=custom_prompts_dir,
             prompt_overrides=prompt_overrides,
@@ -99,38 +110,48 @@ class PipelineArchitecture(BaseArchitecture):
 
         self._stage_results: dict[str, Any] = {}
 
+    def get_role_definitions(self) -> dict[str, RoleDefinition]:
+        """
+        Get role definitions for pipeline architecture.
+
+        Returns:
+            Dict mapping role_id to RoleDefinition
+        """
+        return {
+            "stage": RoleDefinition(
+                role_type=RoleType.EXECUTOR,
+                description="Execute a pipeline stage with specific responsibilities",
+                required_tools=["Read"],
+                optional_tools=["Write", "Edit", "Bash", "Glob", "Grep", "Skill"],
+                cardinality=RoleCardinality.ONE_OR_MORE,
+                default_model=self.pipeline_config.lead_model,
+                prompt_file="stage.txt",
+            ),
+        }
+
     def get_agents(self) -> dict[str, AgentDefinitionConfig]:
-        """Get agent definitions for all pipeline stages."""
+        """Get agent definitions for all pipeline stages (legacy support)."""
+        from claude_agent_framework.core.base import AgentDefinitionConfig
+
         return {stage.agent.name: stage.agent for stage in self.pipeline_config.stages}
 
     def get_lead_prompt(self) -> str:
-        """Get lead agent prompt for pipeline coordination."""
-        base_prompt = super().get_lead_prompt()
+        """Get lead agent prompt with runtime configuration injected."""
+        # Build stage list for template substitution
+        stage_lines = []
+        for i, stage in enumerate(self.pipeline_config.stages, 1):
+            stage_lines.append(f"### Stage {i}: {stage.name}")
+            stage_lines.append(f"- {stage.agent.description}")
+            stage_lines.append("")
+        stage_list = "\n".join(stage_lines) if stage_lines else "- (no stages configured)"
 
-        # Build stage description
-        stage_names = self.pipeline_config.get_stage_names()
-        stages_desc = " → ".join(stage_names)
+        # Inject runtime configuration into template variables
+        self._template_vars.update({
+            "total_stages": str(len(self.pipeline_config.stages)),
+            "stage_list": stage_list,
+        })
 
-        pipeline_context = f"""
-# Pipeline Coordinator
-
-You are the coordinator for the Pipeline architecture, responsible for dispatching stage agents in sequence.
-
-# Execution Flow
-{stages_desc}
-
-# Rules
-1. Execute each stage in order
-2. After each stage completes, pass its output to the next stage
-3. Use the Task tool to dispatch each stage agent
-4. Wait for each stage to complete before proceeding to the next
-
-# Available Stages
-"""
-        for stage in self.pipeline_config.stages:
-            pipeline_context += f"\n## {stage.name}\n- {stage.agent.description}\n"
-
-        return base_prompt + pipeline_context
+        return super().get_lead_prompt()
 
     async def execute(
         self,

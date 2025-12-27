@@ -18,11 +18,12 @@ from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient, HookMatcher
 from claude_agent_framework.architectures.mapreduce.config import MapReduceConfig
 from claude_agent_framework.architectures.mapreduce.splitter import TaskSplitter
 from claude_agent_framework.core.base import (
-    AgentDefinitionConfig,
     AgentModelConfig,
     BaseArchitecture,
 )
 from claude_agent_framework.core.registry import register_architecture
+from claude_agent_framework.core.roles import AgentInstanceConfig, RoleDefinition
+from claude_agent_framework.core.types import RoleCardinality, RoleType
 
 if TYPE_CHECKING:
     from claude_agent_framework.utils import SubagentTracker, TranscriptWriter
@@ -34,12 +35,20 @@ class MapReduceArchitecture(BaseArchitecture):
     MapReduce architecture for parallel processing.
 
     Pattern: Parallel Map with Aggregation
-    - Splitter: Divides task into chunks
-    - Mappers: Process chunks in parallel
-    - Reducer: Aggregates results
+    - Mappers: Process chunks in parallel (1+ agents)
+    - Reducer: Aggregates results (1 agent)
+
+    Role Definitions:
+        mapper: Process assigned data chunks (required, 1+)
+        reducer: Aggregate all results (required, exactly 1)
 
     Usage:
-        arch = MapReduceArchitecture()
+        agents = [
+            AgentInstanceConfig(name="code-analyzer", role="mapper", ...),
+            AgentInstanceConfig(name="metrics-collector", role="mapper", ...),
+            AgentInstanceConfig(name="report-aggregator", role="reducer", ...),
+        ]
+        arch = MapReduceArchitecture(agent_instances=agents)
         async for msg in arch.execute("Analyze all Python files"):
             print(msg)
     """
@@ -53,6 +62,8 @@ class MapReduceArchitecture(BaseArchitecture):
         model_config: AgentModelConfig | None = None,
         prompts_dir: Path | None = None,
         files_dir: Path | None = None,
+        # Role-based configuration
+        agent_instances: list[AgentInstanceConfig] | None = None,
         # Business template and prompt customization
         business_template: str | None = None,
         custom_prompts_dir: Path | str | None = None,
@@ -67,6 +78,7 @@ class MapReduceArchitecture(BaseArchitecture):
             model_config: Model configuration
             prompts_dir: Custom prompts directory
             files_dir: Custom files directory
+            agent_instances: List of agent instance configurations (role-based)
             business_template: Name of business template to use (optional)
             custom_prompts_dir: Application-level custom prompts directory (optional)
             prompt_overrides: Dict of agent_name -> override prompt content
@@ -78,13 +90,14 @@ class MapReduceArchitecture(BaseArchitecture):
         if model_config is None:
             model_config = AgentModelConfig(
                 default=self.mapreduce_config.mapper_model,
-                overrides=self.mapreduce_config.get_model_overrides(),
+                overrides={},
             )
 
         super().__init__(
             model_config=model_config,
             prompts_dir=prompts_dir,
             files_dir=files_dir,
+            agent_instances=agent_instances,
             business_template=business_template,
             custom_prompts_dir=custom_prompts_dir,
             prompt_overrides=prompt_overrides,
@@ -93,8 +106,40 @@ class MapReduceArchitecture(BaseArchitecture):
 
         self._mapper_results: list[str] = []
 
+    def get_role_definitions(self) -> dict[str, RoleDefinition]:
+        """
+        Get role definitions for mapreduce architecture.
+
+        Returns:
+            Dict mapping role_id to RoleDefinition
+        """
+        return {
+            "mapper": RoleDefinition(
+                role_type=RoleType.WORKER,
+                description="Process assigned data chunks and generate intermediate results",
+                required_tools=["Read", "Glob", "Grep"],
+                optional_tools=["Write", "Skill"],
+                cardinality=RoleCardinality.ONE_OR_MORE,
+                default_model=self.mapreduce_config.mapper_model,
+                prompt_file="mapper.txt",
+            ),
+            "reducer": RoleDefinition(
+                role_type=RoleType.SYNTHESIZER,
+                description="Aggregate all mapper results and generate final output",
+                required_tools=["Read", "Write"],
+                optional_tools=["Glob", "Skill"],
+                cardinality=RoleCardinality.EXACTLY_ONE,
+                default_model=self.mapreduce_config.reducer_model,
+                prompt_file="reducer.txt",
+            ),
+        }
+
     def get_agents(self) -> dict[str, AgentDefinitionConfig]:
-        """Get mapper and reducer agent definitions."""
+        """Get mapper and reducer agent definitions (legacy support)."""
+        # This method is kept for backward compatibility
+        # New code should use get_role_definitions() with agent_instances
+        from claude_agent_framework.core.base import AgentDefinitionConfig
+
         return {
             "mapper": AgentDefinitionConfig(
                 name="mapper",
@@ -111,93 +156,28 @@ class MapReduceArchitecture(BaseArchitecture):
         }
 
     def get_lead_prompt(self) -> str:
-        """Get lead agent prompt for mapreduce coordination."""
-        base_prompt = super().get_lead_prompt()
+        """Get lead agent prompt with runtime configuration injected."""
+        # Build agent list for template substitution
+        mappers = self.get_agents_by_role("mapper")
+        reducers = self.get_agents_by_role("reducer")
 
-        return (
-            base_prompt
-            + f"""
-# MapReduce Coordinator
+        agent_lines = []
+        if mappers:
+            agent_lines.append(f"- Mappers: {', '.join(mappers)}")
+        if reducers:
+            agent_lines.append(f"- Reducer: {', '.join(reducers)}")
+        agent_list = "\n".join(agent_lines) if agent_lines else "- (using defaults)"
 
-You are responsible for coordinating large-scale parallel processing tasks, splitting tasks for parallel processing then aggregating results.
+        # Inject runtime configuration into template variables
+        self._template_vars.update({
+            "max_mappers": str(self.mapreduce_config.max_mappers),
+            "chunk_size": str(self.mapreduce_config.chunk_size),
+            "split_strategy": self.mapreduce_config.split_strategy,
+            "aggregation_method": self.mapreduce_config.aggregation_method,
+            "agent_list": agent_list,
+        })
 
-# Rules
-1. Maximum parallel mappers: {self.mapreduce_config.max_mappers}
-2. Chunk size per mapper: {self.mapreduce_config.chunk_size}
-3. Split strategy: {self.mapreduce_config.split_strategy}
-4. Aggregation method: {self.mapreduce_config.aggregation_method}
-
-# Workflow
-
-```
-# Phase 1: Split
-Determine data to process based on task type (file list, topic list, etc.)
-Split data into multiple chunks
-
-# Phase 2: Map (parallel)
-for chunk in chunks:
-    Task(mapper, chunk)  # Dispatch in parallel
-
-Wait for all mappers to complete
-
-# Phase 3: Reduce
-Task(reducer, all_mapper_results)
-```
-
-# Available Agents
-
-## mapper
-- Responsibility: Process single data chunk
-- Input: Data chunk (file list/topic/content fragment)
-- Output: Processing result
-
-## reducer
-- Responsibility: Aggregate all results
-- Input: All mapper outputs
-- Output: Final aggregated result
-
-# Split Strategies
-
-## files
-- Use for: Code analysis, batch file processing
-- Each mapper processes a group of files
-
-## topic
-- Use for: Multi-perspective research
-- Each mapper researches one aspect
-
-## content
-- Use for: Long text processing
-- Each mapper processes one text fragment
-
-# Output Specification
-
-```markdown
-# MapReduce Execution Report
-
-## Task
-[Task description]
-
-## Split Result
-- Strategy: [files/topic/content]
-- Number of chunks: N
-- Chunk size: ~{self.mapreduce_config.chunk_size}
-
-## Map Phase
-| Mapper | Content | Result Summary |
-|--------|---------|----------------|
-| 1 | [content] | [summary] |
-| 2 | [content] | [summary] |
-| ... | ... | ... |
-
-## Reduce Phase
-[Aggregated result]
-
-## Final Output
-[Final result or output file location]
-```
-"""
-        )
+        return super().get_lead_prompt()
 
     async def execute(
         self,

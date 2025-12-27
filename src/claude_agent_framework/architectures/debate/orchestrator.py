@@ -19,11 +19,12 @@ from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient, HookMatcher
 
 from claude_agent_framework.architectures.debate.config import DebateConfig
 from claude_agent_framework.core.base import (
-    AgentDefinitionConfig,
     AgentModelConfig,
     BaseArchitecture,
 )
 from claude_agent_framework.core.registry import register_architecture
+from claude_agent_framework.core.roles import AgentInstanceConfig, RoleDefinition
+from claude_agent_framework.core.types import RoleCardinality, RoleType
 
 if TYPE_CHECKING:
     from claude_agent_framework.utils import SubagentTracker, TranscriptWriter
@@ -73,7 +74,9 @@ class DebateArchitecture(BaseArchitecture):
         model_config: AgentModelConfig | None = None,
         prompts_dir: Path | None = None,
         files_dir: Path | None = None,
-        # Business template and prompt customization
+        # Role-based configuration
+        agent_instances: list[AgentInstanceConfig] | None = None,
+        # Prompt customization (business_templates and skills support)
         business_template: str | None = None,
         custom_prompts_dir: Path | str | None = None,
         prompt_overrides: dict[str, str] | None = None,
@@ -87,6 +90,7 @@ class DebateArchitecture(BaseArchitecture):
             model_config: Model configuration
             prompts_dir: Custom prompts directory
             files_dir: Custom files directory
+            agent_instances: List of agent instance configurations (role-based)
             business_template: Name of business template to use (optional)
             custom_prompts_dir: Application-level custom prompts directory (optional)
             prompt_overrides: Dict of agent_name -> override prompt content
@@ -104,6 +108,7 @@ class DebateArchitecture(BaseArchitecture):
             model_config=model_config,
             prompts_dir=prompts_dir,
             files_dir=files_dir,
+            agent_instances=agent_instances,
             business_template=business_template,
             custom_prompts_dir=custom_prompts_dir,
             prompt_overrides=prompt_overrides,
@@ -113,82 +118,66 @@ class DebateArchitecture(BaseArchitecture):
         self._debate_history: list[DebateRound] = []
         self._verdict: Verdict | None = None
 
-    def get_agents(self) -> dict[str, AgentDefinitionConfig]:
-        """Get debate agent definitions."""
+    def get_role_definitions(self) -> dict[str, RoleDefinition]:
+        """
+        Get role definitions for debate architecture.
+
+        Returns:
+            Dict mapping role_id to RoleDefinition
+        """
         return {
-            "proponent": AgentDefinitionConfig(
-                name="proponent",
-                description="Argue the pro position, provide supporting arguments",
-                tools=["Read", "WebSearch"],
+            "proponent": RoleDefinition(
+                role_type=RoleType.ADVOCATE,
+                description="Argue the pro position with evidence-based reasoning",
+                required_tools=["Read"],
+                optional_tools=["WebSearch", "Skill"],
+                cardinality=RoleCardinality.EXACTLY_ONE,
+                default_model=self.debate_config.proponent_model,
                 prompt_file="proponent.txt",
             ),
-            "opponent": AgentDefinitionConfig(
-                name="opponent",
-                description="Argue the con position, provide counter-arguments",
-                tools=["Read", "WebSearch"],
+            "opponent": RoleDefinition(
+                role_type=RoleType.ADVOCATE,
+                description="Argue the con position with counter-evidence",
+                required_tools=["Read"],
+                optional_tools=["WebSearch", "Skill"],
+                cardinality=RoleCardinality.EXACTLY_ONE,
+                default_model=self.debate_config.opponent_model,
                 prompt_file="opponent.txt",
             ),
-            "judge": AgentDefinitionConfig(
-                name="judge",
-                description="Evaluate both sides' arguments and render final verdict",
-                tools=["Read"],
+            "judge": RoleDefinition(
+                role_type=RoleType.JUDGE,
+                description="Evaluate arguments and render final verdict",
+                required_tools=["Read"],
+                optional_tools=["Skill"],
+                cardinality=RoleCardinality.EXACTLY_ONE,
+                default_model=self.debate_config.judge_model,
                 prompt_file="judge.txt",
             ),
         }
 
     def get_lead_prompt(self) -> str:
-        """Get lead agent prompt for debate coordination."""
-        base_prompt = super().get_lead_prompt()
+        """Get lead agent prompt with runtime configuration injected."""
+        # Build agent list for template substitution
+        proponents = self.get_agents_by_role("proponent")
+        opponents = self.get_agents_by_role("opponent")
+        judges = self.get_agents_by_role("judge")
 
-        return (
-            base_prompt
-            + f"""
-# Debate Coordinator
+        agent_lines = []
+        if proponents:
+            agent_lines.append(f"- Proponent: {', '.join(proponents)}")
+        if opponents:
+            agent_lines.append(f"- Opponent: {', '.join(opponents)}")
+        if judges:
+            agent_lines.append(f"- Judge: {', '.join(judges)}")
+        agent_list = "\n".join(agent_lines) if agent_lines else "- (using defaults)"
 
-You are responsible for coordinating the debate between proponent and opponent, then requesting the judge to render a verdict.
+        # Inject runtime configuration into template variables
+        self._template_vars.update({
+            "max_rounds": str(self.debate_config.debate_rounds),
+            "agent_list": agent_list,
+        })
 
-# Debate Rules
-1. Number of rounds: {self.debate_config.debate_rounds}
-2. Each round: Proponent speaks → Opponent speaks
-3. After all rounds, request judge to render verdict
-
-# Workflow
-
-```
-for round in range(debate_rounds):
-    # Proponent argues
-    pro_arg = Task(proponent, topic + opponent_points)
-
-    # Opponent rebuts
-    con_arg = Task(opponent, topic + proponent_points)
-
-# Judge renders verdict
-verdict = Task(judge, all_arguments)
-```
-
-# Available Agents
-
-## proponent (Pro Side)
-- Responsibility: Support argument
-- Provide evidence and reasoning supporting the position
-
-## opponent (Con Side)
-- Responsibility: Opposition argument
-- Provide evidence and reasoning opposing the position
-
-## judge
-- Responsibility: Render verdict
-- Evaluate both sides' arguments and provide final conclusion
-
-# Output Specification
-After each round, report:
-- Proponent's main arguments
-- Opponent's main arguments
-- Current status
-
-Finally output the judge's verdict.
-"""
-        )
+        return super().get_lead_prompt()
 
     async def execute(
         self,

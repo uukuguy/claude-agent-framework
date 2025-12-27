@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from common import ResultSaver, extract_message_content, load_yaml_config, validate_config
 
 from claude_agent_framework import create_session
+from claude_agent_framework.core.roles import AgentInstanceConfig
 
 
 class ConfigurationError(Exception):
@@ -36,12 +37,45 @@ class ExecutionError(Exception):
     pass
 
 
+def _build_agent_instances(config: dict, models: dict) -> list[AgentInstanceConfig]:
+    """Build agent instance configurations for debate architecture.
+
+    Args:
+        config: Configuration dictionary
+        models: Model configuration
+
+    Returns:
+        list: List of AgentInstanceConfig for proponent, opponent, and judge roles
+    """
+    return [
+        AgentInstanceConfig(
+            name="solution_advocate",
+            role="proponent",
+            model=models.get("proponent", "sonnet"),
+        ),
+        AgentInstanceConfig(
+            name="risk_analyst",
+            role="opponent",
+            model=models.get("opponent", "sonnet"),
+        ),
+        AgentInstanceConfig(
+            name="tech_lead",
+            role="judge",
+            model=models.get("judge", "sonnet"),
+        ),
+    ]
+
+
 async def run_tech_decision(
     config: dict,
     decision_question: str,
     context: dict,
 ) -> dict:
     """Run tech decision evaluation using Debate architecture.
+
+    Uses two-layer prompt composition:
+    - Framework layer: Generic debate role capabilities (from architecture)
+    - Business layer: Tech decision context and Skills (from prompts_dir)
 
     Args:
         config: Configuration dict from config.yaml
@@ -74,19 +108,29 @@ async def run_tech_decision(
         advanced,
     )
 
-    # Initialize debate session with business template
+    # Business prompts directory (contains business-specific context)
+    prompts_dir = Path(__file__).parent / "prompts"
+
+    # Template variables for prompt customization
+    template_vars = {
+        "decision_topic": decision_question,
+        "organization": config.get("organization", "Organization"),
+        "evaluation_criteria": ", ".join(evaluation_criteria.keys()),
+    }
+
+    # Build agent instances based on roles
+    agent_instances = _build_agent_instances(config, models)
+
+    # Initialize debate session with two-layer prompt composition:
+    # - Framework prompts: Generic debate role capabilities (from debate architecture)
+    # - Business prompts: Tech decision context and Skills (from prompts_dir)
     try:
         session = create_session(
             "debate",
             model=models.get("lead", "sonnet"),
-            business_template=config.get("business_template", "tech_decision"),
-            template_vars={
-                "decision_topic": config.get("decision_topic", "Technology Decision"),
-                "organization": config.get("organization", "Organization"),
-                "evaluation_criteria": config.get(
-                    "evaluation_criteria", ["Technical Fit", "Cost", "Risk"]
-                ),
-            },
+            agent_instances=agent_instances,
+            prompts_dir=prompts_dir,
+            template_vars=template_vars,
             verbose=False,
         )
     except Exception as e:

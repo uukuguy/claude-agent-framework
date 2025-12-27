@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from common import ResultSaver, extract_message_content, load_yaml_config, validate_config
 
 from claude_agent_framework import create_session
+from claude_agent_framework.core.roles import AgentInstanceConfig
 
 
 class ConfigurationError(Exception):
@@ -94,12 +95,29 @@ async def run_codebase_analysis(
         options,
     )
 
-    # Initialize mapreduce session with business template
+    # Build agent instances from config
+    agent_instances = [
+        AgentInstanceConfig(
+            name=mapreduce_config["mapper"]["name"],
+            role="mapper",
+            model=models.get("mapper", "haiku"),
+            prompt_file=str(Path(__file__).parent / "prompts" / "code_analyzer.txt"),
+        ),
+        AgentInstanceConfig(
+            name=mapreduce_config["reducer"]["name"],
+            role="reducer",
+            model=models.get("reducer", "sonnet"),
+            prompt_file=str(Path(__file__).parent / "prompts" / "report_aggregator.txt"),
+        ),
+    ]
+
+    # Initialize mapreduce session with agent instances
     try:
         session = create_session(
             "mapreduce",
             model=models.get("coordinator", "sonnet"),
-            business_template=config.get("business_template", "codebase_analysis"),
+            agent_instances=agent_instances,
+            lead_agent_prompt=str(Path(__file__).parent / "prompts" / "lead_agent.txt"),
             template_vars={
                 "codebase": config.get("codebase", "Project Codebase"),
                 "analysis_focus": config.get(
@@ -107,6 +125,7 @@ async def run_codebase_analysis(
                 ),
                 "file_patterns": config.get("file_patterns", "**/*.py"),
             },
+            setting_sources=["user", "project"],
             verbose=False,
         )
     except Exception as e:

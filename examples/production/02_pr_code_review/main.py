@@ -27,6 +27,7 @@ from common import (
 )
 
 from claude_agent_framework import create_session
+from claude_agent_framework.core.roles import AgentInstanceConfig
 
 logger = logging.getLogger(__name__)
 
@@ -60,16 +61,29 @@ async def run_pr_review(config: dict) -> dict:
         # Build pipeline prompt
         prompt = _build_pipeline_prompt(stages, pr_data, analysis_config)
 
-        # Initialize session with Pipeline architecture and business template
+        # Build agent instances for each stage
+        agent_instances = [
+            AgentInstanceConfig(
+                name=stage["name"],
+                role="stage",
+                model=models.get("agents", "haiku"),
+                prompt_file=str(Path(__file__).parent / "prompts" / "stage_executor.txt"),
+            )
+            for stage in stages
+        ]
+
+        # Initialize session with Pipeline architecture and agent instances
         session = create_session(
             "pipeline",
             model=models.get("lead", "sonnet"),
-            business_template=config.get("business_template", "pr_code_review"),
+            agent_instances=agent_instances,
+            lead_agent_prompt=str(Path(__file__).parent / "prompts" / "lead_agent.txt"),
             template_vars={
                 "repository": config.get("repository", "Project Repository"),
                 "pr_number": config.get("pr_number", ""),
                 "review_focus": config.get("review_focus", ["Code Quality", "Security"]),
             },
+            setting_sources=["user", "project"],
             verbose=False,
         )
 

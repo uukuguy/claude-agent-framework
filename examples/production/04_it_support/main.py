@@ -27,6 +27,7 @@ from common import (
 )
 
 from claude_agent_framework import create_session
+from claude_agent_framework.core.roles import AgentInstanceConfig
 
 logger = logging.getLogger(__name__)
 
@@ -77,16 +78,29 @@ async def run_it_support(config: dict, issue_title: str, issue_description: str)
         response_template,
     )
 
-    # Run specialist pool architecture with business template
+    # Build agent instances from selected specialists
+    agent_instances = [
+        AgentInstanceConfig(
+            name=specialist["name"],
+            role="specialist",
+            model=models.get("specialists", "haiku"),
+            prompt_file=str(Path(__file__).parent / "prompts" / "specialist.txt"),
+        )
+        for specialist in selected_specialists
+    ]
+
+    # Run specialist pool architecture with agent instances
     session = create_session(
         "specialist_pool",
         model=models.get("lead", "sonnet"),
-        business_template=config.get("business_template", "it_support"),
+        agent_instances=agent_instances,
+        lead_agent_prompt=str(Path(__file__).parent / "prompts" / "lead_agent.txt"),
         template_vars={
             "organization": config.get("organization", "Organization"),
             "support_level": config.get("support_level", "Tier 1"),
             "sla_priority": config.get("sla_priority", "standard"),
         },
+        setting_sources=["user", "project"],
         verbose=False,
     )
 

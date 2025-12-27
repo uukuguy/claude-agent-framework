@@ -2,6 +2,10 @@
 
 This example demonstrates using the Critic-Actor architecture to create and
 iteratively improve marketing content based on multi-dimensional evaluation.
+
+Uses two-layer prompt composition:
+- Framework layer: Generic actor/critic role capabilities
+- Business layer: Marketing-specific context and Skills references
 """
 
 import argparse
@@ -26,12 +30,41 @@ from common import (
 )
 
 from claude_agent_framework import create_session
+from claude_agent_framework.core.roles import AgentInstanceConfig
 
 logger = logging.getLogger(__name__)
 
 
+def _build_agent_instances(config: dict, models: dict) -> list[AgentInstanceConfig]:
+    """Build agent instance configurations for critic-actor architecture.
+
+    Args:
+        config: Configuration dictionary
+        models: Model configuration
+
+    Returns:
+        list: List of AgentInstanceConfig for actor and critic roles
+    """
+    return [
+        AgentInstanceConfig(
+            name="content_creator",
+            role="actor",
+            model=models.get("actor", "sonnet"),
+        ),
+        AgentInstanceConfig(
+            name="brand_reviewer",
+            role="critic",
+            model=models.get("critic", "sonnet"),
+        ),
+    ]
+
+
 async def run_content_optimization(config: dict) -> dict:
     """Run marketing content optimization using Critic-Actor architecture.
+
+    Uses two-layer prompt composition:
+    - Framework layer: Generic actor/critic role capabilities (from architecture)
+    - Business layer: Marketing-specific context and Skills (from prompts_dir)
 
     Args:
         config: Configuration dictionary
@@ -55,17 +88,30 @@ async def run_content_optimization(config: dict) -> dict:
         content_config, brand_config, evaluation_config, iteration_config
     )
 
-    # Run critic-actor architecture with business template
+    # Business prompts directory (contains business-specific context)
+    prompts_dir = Path(__file__).parent / "prompts"
+
+    # Template variables for prompt customization
+    template_vars = {
+        "brand_name": config.get("brand_name", "Brand Name"),
+        "target_audience": config.get("target_audience", "Target Audience"),
+        "content_type": content_config.get("type", "blog post"),
+        "brand_voice": brand_config.get("voice", "professional"),
+    }
+
+    # Build agent instances based on roles
+    agent_instances = _build_agent_instances(config, models)
+    logger.info(f"Created {len(agent_instances)} agent instances (actor + critic)")
+
+    # Create session with two-layer prompt composition:
+    # - Framework prompts: Generic role capabilities (from critic_actor architecture)
+    # - Business prompts: Marketing-specific context and Skills (from prompts_dir)
     session = create_session(
         "critic_actor",
         model=models.get("lead", "sonnet"),
-        business_template=config.get("business_template", "marketing_content"),
-        template_vars={
-            "brand_name": config.get("brand_name", "Brand Name"),
-            "target_audience": config.get("target_audience", "Target Audience"),
-            "content_type": config.get("content_type", "blog post"),
-            "brand_voice": config.get("brand_voice", "professional"),
-        },
+        agent_instances=agent_instances,
+        prompts_dir=prompts_dir,
+        template_vars=template_vars,
         verbose=False,
     )
 

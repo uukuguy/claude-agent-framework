@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from common import ResultSaver, extract_message_content, load_yaml_config, validate_config
 
 from claude_agent_framework import create_session
+from claude_agent_framework.core.roles import AgentInstanceConfig
 
 
 class ConfigurationError(Exception):
@@ -54,12 +55,40 @@ def _confidence_to_score(confidence: str) -> float:
     return confidence_map.get(confidence.lower(), 0.0)
 
 
+def _build_agent_instances(config: dict, models: dict) -> list[AgentInstanceConfig]:
+    """Build agent instance configurations for reflexion architecture.
+
+    Args:
+        config: Configuration dictionary
+        models: Model configuration
+
+    Returns:
+        list: List of AgentInstanceConfig for executor and reflector roles
+    """
+    return [
+        AgentInstanceConfig(
+            name="debug_executor",
+            role="executor",
+            model=models.get("executor", "sonnet"),
+        ),
+        AgentInstanceConfig(
+            name="debug_analyst",
+            role="reflector",
+            model=models.get("reflector", "sonnet"),
+        ),
+    ]
+
+
 async def run_code_debugger(
     config: dict,
     bug_description: str,
     context: dict,
 ) -> dict:
     """Run code debugging using Reflexion architecture.
+
+    Uses two-layer prompt composition:
+    - Framework layer: Generic executor/reflector role capabilities (from architecture)
+    - Business layer: Debugging context and Skills (from prompts_dir)
 
     Args:
         config: Configuration dict from config.yaml
@@ -110,17 +139,29 @@ async def run_code_debugger(
         advanced,
     )
 
-    # Initialize reflexion session with business template
+    # Business prompts directory (contains business-specific context)
+    prompts_dir = Path(__file__).parent / "prompts"
+
+    # Template variables for prompt customization
+    template_vars = {
+        "codebase": config.get("codebase", "Application Codebase"),
+        "language": config.get("language", "Python"),
+        "bug_description": bug_description,
+    }
+
+    # Build agent instances based on roles
+    agent_instances = _build_agent_instances(config, models)
+
+    # Initialize reflexion session with two-layer prompt composition:
+    # - Framework prompts: Generic executor/reflector capabilities (from reflexion architecture)
+    # - Business prompts: Debugging context and Skills (from prompts_dir)
     try:
         session = create_session(
             "reflexion",
             model=models.get("lead", "sonnet"),
-            business_template=config.get("business_template", "code_debugger"),
-            template_vars={
-                "codebase": config.get("codebase", "Application Codebase"),
-                "language": config.get("language", "Python"),
-                "bug_description": bug_description,
-            },
+            agent_instances=agent_instances,
+            prompts_dir=prompts_dir,
+            template_vars=template_vars,
             verbose=False,
         )
     except Exception as e:

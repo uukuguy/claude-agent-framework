@@ -153,30 +153,30 @@ class ResearchArchitecture(BaseArchitecture):
     def get_lead_prompt(self) -> str:
         """Get lead agent prompt with research-specific context."""
         base_prompt = super().get_lead_prompt()
+        return base_prompt
+        # # Add research depth context
+        # depth_context = (
+        #     f"\n\n# Research Depth\nCurrently set to {self.research_config.research_depth} mode."
+        # )
+        # if self.research_config.research_depth == "shallow":
+        #     depth_context += (
+        #         "\n- Quick overview, 2-3 key data points\n- Dispatch 2 workers in parallel"
+        #     )
+        # elif self.research_config.research_depth == "deep":
+        #     depth_context += (
+        #         "\n- Deep analysis, 15+ data points\n- Dispatch 4 workers in parallel"
+        #     )
+        # else:
+        #     depth_context += (
+        #         "\n- Standard depth, 5-10 data points\n- Dispatch 3 workers in parallel"
+        #     )
 
-        # Add research depth context
-        depth_context = (
-            f"\n\n# Research Depth\nCurrently set to {self.research_config.research_depth} mode."
-        )
-        if self.research_config.research_depth == "shallow":
-            depth_context += (
-                "\n- Quick overview, 2-3 key data points\n- Dispatch 2 workers in parallel"
-            )
-        elif self.research_config.research_depth == "deep":
-            depth_context += (
-                "\n- Deep analysis, 15+ data points\n- Dispatch 4 workers in parallel"
-            )
-        else:
-            depth_context += (
-                "\n- Standard depth, 5-10 data points\n- Dispatch 3 workers in parallel"
-            )
+        # # Add configured agent info
+        # workers = self.get_agents_by_role("worker")
+        # if workers:
+        #     depth_context += f"\n\nAvailable workers: {', '.join(workers)}"
 
-        # Add configured agent info
-        workers = self.get_agents_by_role("worker")
-        if workers:
-            depth_context += f"\n\nAvailable workers: {', '.join(workers)}"
-
-        return base_prompt + depth_context
+        # return base_prompt + depth_context
 
     async def setup(self) -> None:
         """Setup research directories."""

@@ -271,6 +271,153 @@ session = create_session("my_arch", agent_instances=agents)
 
 For complete documentation, see [docs/ROLE_BASED_ARCHITECTURE.md](docs/ROLE_BASED_ARCHITECTURE.md).
 
+## Two-Layer Prompt Architecture
+
+The framework uses a **two-layer prompt composition** pattern that separates generic orchestration logic from business-specific context.
+
+### Layer Overview
+
+| Layer | Location | Purpose |
+|-------|----------|---------|
+| **Framework** | `architectures/*/prompts/` | Generic role capabilities, workflow phases, dispatching rules |
+| **Business** | `examples/production/*/prompts/` | Domain context, template variables, Skills references |
+
+### Prompt Composition Flow
+
+```
+┌─────────────────────────────────────────┐
+│         Business Layer Prompt            │
+│  (examples/production/*/prompts/)        │
+│  - Domain-specific context               │
+│  - Template variables: ${company}        │
+│  - Skills references                     │
+└────────────────────┬────────────────────┘
+                     │ merged with
+┌────────────────────▼────────────────────┐
+│         Framework Layer Prompt           │
+│  (architectures/*/prompts/)              │
+│  - Role definition                       │
+│  - Core rules                            │
+│  - Workflow phases                       │
+│  - Dispatching guidelines                │
+└─────────────────────────────────────────┘
+```
+
+### Framework Prompt Structure
+
+All framework lead agent prompts follow this structure:
+
+```markdown
+# Role: {Architecture} Coordinator
+
+## Core Rules
+1. You may ONLY use the Task tool to dispatch sub-agents
+2. NEVER perform {task type} tasks yourself
+...
+
+## Workflow Phases
+### 1. {Phase Name}
+- Dispatch `{role}` role agent to {action}
+...
+
+## Dispatching Guidelines
+- Use agent names as configured (check available agents)
+- Reference {criteria} from business context
+
+## State Tracking
+## Termination Conditions
+## Quality Gates
+## Error Handling
+```
+
+### Business Prompt Structure
+
+Business prompts add domain context:
+
+```markdown
+# {Business Role Title}
+
+You are coordinating {task} for ${organization}.
+
+## Team & Skills
+- **{Agent}**: Uses `{skill-name}` Skill for {purpose}
+
+## Coordination Strategy
+### Phase 1: {Business Phase}
+- Output saved to `files/{category}/`
+
+## Deliverables
+## Success Criteria
+```
+
+### Key Design Principles
+
+1. **Framework prompts are generic**: Use role terminology (`actor role agent`) not specific names
+2. **Business prompts add context**: Template variables, Skills, file locations
+3. **Skills provide methodology**: Detailed frameworks invoked by agents based on context
+4. **Template variables enable reuse**: `${company_name}`, `${quality_threshold}`
+
+For complete prompt writing guide, see [docs/PROMPT_WRITING_GUIDE.md](docs/PROMPT_WRITING_GUIDE.md).
+
+## Production Example Design
+
+Each production example demonstrates a complete business application of an architecture.
+
+### Example Directory Structure
+
+```
+examples/production/{example_name}/
+├── main.py                      # Entry point with agent_instances
+├── config.yaml                  # Configuration with template variables
+├── prompts/
+│   ├── lead_agent.txt           # Business context for coordinator
+│   └── {agent}.txt              # Business context for each role
+├── .claude/skills/
+│   └── {skill}/SKILL.md         # Methodology guidance
+└── README.md                    # Documentation
+```
+
+### Agent Instance Configuration Pattern
+
+```python
+from claude_agent_framework.core.roles import AgentInstanceConfig
+
+def _build_agent_instances(config: dict) -> list[AgentInstanceConfig]:
+    return [
+        AgentInstanceConfig(
+            name="{business_agent_name}",  # e.g., "content_creator"
+            role="{framework_role}",        # e.g., "actor"
+            model=config.get("model", "sonnet"),
+        ),
+        # ... more agents
+    ]
+
+session = create_session(
+    "{architecture}",
+    agent_instances=_build_agent_instances(config),
+    prompts_dir=Path(__file__).parent / "prompts",
+    template_vars=template_vars,
+)
+```
+
+### Skills Integration
+
+Skills provide methodology that agents invoke based on context:
+
+```
+.claude/skills/
+├── {domain-skill}/
+│   └── SKILL.md        # Methodology, frameworks, quality standards
+└── {analysis-skill}/
+    └── SKILL.md
+```
+
+Reference in business prompts:
+```markdown
+## Available Skills
+- **{skill-name}**: {What methodology it provides}
+```
+
 ## Code Style
 
 - **Python version**: 3.10+
@@ -404,6 +551,7 @@ The framework includes **7 production-grade examples** (`examples/production/`) 
 - README.md / README_CN.md - User documentation (English/Chinese)
 - docs/BEST_PRACTICES.md / docs/BEST_PRACTICES_CN.md - Best practices guide (English/Chinese)
 - docs/ROLE_BASED_ARCHITECTURE.md / docs/ROLE_BASED_ARCHITECTURE_CN.md - Role-based architecture guide (English/Chinese)
+- docs/PROMPT_WRITING_GUIDE.md - Two-layer prompt architecture and writing specifications
 - docs/api/core.md / docs/api/core_cn.md - Core API reference (English/Chinese)
 - examples/production/README.md - Production examples overview
 - examples/production/*/README.md - Individual example documentation (all 7 examples complete):

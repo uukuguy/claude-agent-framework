@@ -19,11 +19,12 @@ from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient, HookMatcher
 
 from claude_agent_framework.architectures.reflexion.config import ReflexionConfig
 from claude_agent_framework.core.base import (
-    AgentDefinitionConfig,
     AgentModelConfig,
     BaseArchitecture,
 )
 from claude_agent_framework.core.registry import register_architecture
+from claude_agent_framework.core.roles import AgentInstanceConfig, RoleDefinition
+from claude_agent_framework.core.types import RoleCardinality, RoleType
 
 if TYPE_CHECKING:
     from claude_agent_framework.utils import SubagentTracker, TranscriptWriter
@@ -66,7 +67,9 @@ class ReflexionArchitecture(BaseArchitecture):
         model_config: AgentModelConfig | None = None,
         prompts_dir: Path | None = None,
         files_dir: Path | None = None,
-        # Business template and prompt customization
+        # Role-based configuration
+        agent_instances: list[AgentInstanceConfig] | None = None,
+        # Prompt customization (business_templates and skills support)
         business_template: str | None = None,
         custom_prompts_dir: Path | str | None = None,
         prompt_overrides: dict[str, str] | None = None,
@@ -80,6 +83,7 @@ class ReflexionArchitecture(BaseArchitecture):
             model_config: Model configuration
             prompts_dir: Custom prompts directory
             files_dir: Custom files directory
+            agent_instances: List of agent instance configurations (role-based)
             business_template: Name of business template to use (optional)
             custom_prompts_dir: Application-level custom prompts directory (optional)
             prompt_overrides: Dict of agent_name -> override prompt content
@@ -97,6 +101,7 @@ class ReflexionArchitecture(BaseArchitecture):
             model_config=model_config,
             prompts_dir=prompts_dir,
             files_dir=files_dir,
+            agent_instances=agent_instances,
             business_template=business_template,
             custom_prompts_dir=custom_prompts_dir,
             prompt_overrides=prompt_overrides,
@@ -105,85 +110,56 @@ class ReflexionArchitecture(BaseArchitecture):
 
         self._reflection_history: list[ReflectionRecord] = []
 
-    def get_agents(self) -> dict[str, AgentDefinitionConfig]:
-        """Get executor and reflector agent definitions."""
+    def get_role_definitions(self) -> dict[str, RoleDefinition]:
+        """
+        Get role definitions for reflexion architecture.
+
+        Returns:
+            Dict mapping role_id to RoleDefinition
+        """
         return {
-            "executor": AgentDefinitionConfig(
-                name="executor",
-                description="Execute tasks and attempt to solve problems",
-                tools=["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
+            "executor": RoleDefinition(
+                role_type=RoleType.EXECUTOR,
+                description="Execute tasks and attempt problem solutions",
+                required_tools=["Read", "Write", "Edit", "Bash"],
+                optional_tools=["Glob", "Grep", "Skill"],
+                cardinality=RoleCardinality.EXACTLY_ONE,
+                default_model=self.reflexion_config.executor_model,
                 prompt_file="executor.txt",
             ),
-            "reflector": AgentDefinitionConfig(
-                name="reflector",
-                description="Analyze execution results and provide improvement strategies",
-                tools=["Read", "Glob"],
+            "reflector": RoleDefinition(
+                role_type=RoleType.REFLECTOR,
+                description="Analyze results and provide improvement strategies",
+                required_tools=["Read"],
+                optional_tools=["Glob", "Skill"],
+                cardinality=RoleCardinality.EXACTLY_ONE,
+                default_model=self.reflexion_config.reflector_model,
                 prompt_file="reflector.txt",
             ),
         }
 
     def get_lead_prompt(self) -> str:
-        """Get lead agent prompt for reflexion coordination."""
-        base_prompt = super().get_lead_prompt()
+        """Get lead agent prompt with runtime configuration injected."""
+        # Build agent list for template substitution
+        executors = self.get_agents_by_role("executor")
+        reflectors = self.get_agents_by_role("reflector")
 
-        return (
-            base_prompt
-            + f"""
-# Reflexion Coordinator
+        agent_lines = []
+        if executors:
+            agent_lines.append(f"- Executor: {', '.join(executors)}")
+        if reflectors:
+            agent_lines.append(f"- Reflector: {', '.join(reflectors)}")
+        agent_list = "\n".join(agent_lines) if agent_lines else "- (using defaults)"
 
-You are responsible for coordinating the execute-reflect-improve loop until the task is successfully completed.
+        # Inject runtime configuration into template variables
+        self._template_vars.update({
+            "max_iterations": str(self.reflexion_config.max_attempts),
+            "success_indicators": ", ".join(self.reflexion_config.success_indicators),
+            "failure_indicators": ", ".join(self.reflexion_config.failure_indicators),
+            "agent_list": agent_list,
+        })
 
-# Rules
-1. Maximum attempts: {self.reflexion_config.max_attempts}
-2. Each cycle: Execute → Reflect → (Improved strategy → Re-execute)
-3. Stop on success, continue improving on failure
-
-# Workflow
-
-```
-attempt = 0
-strategy = initial_task
-
-while attempt < max_attempts:
-    # Execute task
-    result = Task(executor, strategy)
-
-    # Reflect and analyze
-    reflection = Task(reflector, result)
-
-    if reflection.success:
-        break
-
-    # Extract improved strategy
-    strategy = reflection.improved_strategy
-    attempt += 1
-```
-
-# Available Agents
-
-## executor
-- Responsibility: Execute tasks
-- Input: Task description + improved strategy (if any)
-- Output: Execution result
-
-## reflector
-- Responsibility: Analyze and improve
-- Input: Execution result
-- Output: Analysis + improved strategy
-
-# Success Criteria
-Observe execution results for:
-- Success indicators: {", ".join(self.reflexion_config.success_indicators)}
-- Failure indicators: {", ".join(self.reflexion_config.failure_indicators)}
-
-# Output Specification
-After each attempt, report:
-- Attempt number
-- Execution result summary
-- Success status
-- Next strategy (if continuing)
-"""
-        )
+        return super().get_lead_prompt()
 
     async def execute(
         self,

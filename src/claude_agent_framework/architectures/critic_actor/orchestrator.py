@@ -6,6 +6,10 @@ Implements generate-evaluate loop:
 2. Critic evaluates with feedback
 3. Actor improves based on feedback
 4. Repeat until quality threshold or max iterations
+
+Role-based architecture:
+- actor: Content generator/improver (exactly 1)
+- critic: Quality evaluator (exactly 1)
 """
 
 from __future__ import annotations
@@ -19,11 +23,12 @@ from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient, HookMatcher
 
 from claude_agent_framework.architectures.critic_actor.config import CriticActorConfig
 from claude_agent_framework.core.base import (
-    AgentDefinitionConfig,
     AgentModelConfig,
     BaseArchitecture,
 )
 from claude_agent_framework.core.registry import register_architecture
+from claude_agent_framework.core.roles import AgentInstanceConfig, RoleDefinition
+from claude_agent_framework.core.types import RoleCardinality, RoleType
 
 if TYPE_CHECKING:
     from claude_agent_framework.utils import SubagentTracker, TranscriptWriter
@@ -50,8 +55,16 @@ class CriticActorArchitecture(BaseArchitecture):
     - Critic: Evaluates and provides feedback
     - Loop: Iterate until quality threshold
 
+    Role Definitions:
+        actor: Generate or improve content (required, exactly 1)
+        critic: Evaluate quality and provide feedback (required, exactly 1)
+
     Usage:
-        arch = CriticActorArchitecture()
+        agents = [
+            AgentInstanceConfig(name="content_creator", role="actor", ...),
+            AgentInstanceConfig(name="brand_reviewer", role="critic", ...),
+        ]
+        arch = CriticActorArchitecture(agent_instances=agents)
         async for msg in arch.execute("Write a Python function for sorting"):
             print(msg)
     """
@@ -65,7 +78,9 @@ class CriticActorArchitecture(BaseArchitecture):
         model_config: AgentModelConfig | None = None,
         prompts_dir: Path | None = None,
         files_dir: Path | None = None,
-        # Business template and prompt customization
+        # Role-based configuration
+        agent_instances: list[AgentInstanceConfig] | None = None,
+        # Prompt customization (business_templates and skills support)
         business_template: str | None = None,
         custom_prompts_dir: Path | str | None = None,
         prompt_overrides: dict[str, str] | None = None,
@@ -79,6 +94,7 @@ class CriticActorArchitecture(BaseArchitecture):
             model_config: Model configuration
             prompts_dir: Custom prompts directory
             files_dir: Custom files directory
+            agent_instances: List of agent instance configurations (role-based)
             business_template: Name of business template to use (optional)
             custom_prompts_dir: Application-level custom prompts directory (optional)
             prompt_overrides: Dict of agent_name -> override prompt content
@@ -96,6 +112,7 @@ class CriticActorArchitecture(BaseArchitecture):
             model_config=model_config,
             prompts_dir=prompts_dir,
             files_dir=files_dir,
+            agent_instances=agent_instances,
             business_template=business_template,
             custom_prompts_dir=custom_prompts_dir,
             prompt_overrides=prompt_overrides,
@@ -104,69 +121,55 @@ class CriticActorArchitecture(BaseArchitecture):
 
         self._iteration_history: list[IterationRecord] = []
 
-    def get_agents(self) -> dict[str, AgentDefinitionConfig]:
-        """Get actor and critic agent definitions."""
+    def get_role_definitions(self) -> dict[str, RoleDefinition]:
+        """
+        Get role definitions for critic-actor architecture.
+
+        Returns:
+            Dict mapping role_id to RoleDefinition
+        """
         return {
-            "actor": AgentDefinitionConfig(
-                name="actor",
-                description="Generate or improve content, iterate based on feedback",
-                tools=["Read", "Write", "Edit"],
+            "actor": RoleDefinition(
+                role_type=RoleType.EXECUTOR,
+                description="Generate or improve content based on task and feedback",
+                required_tools=["Read", "Write", "Edit"],
+                optional_tools=["Glob", "Bash", "Skill"],
+                cardinality=RoleCardinality.EXACTLY_ONE,
+                default_model=self.critic_config.actor_model,
                 prompt_file="actor.txt",
             ),
-            "critic": AgentDefinitionConfig(
-                name="critic",
+            "critic": RoleDefinition(
+                role_type=RoleType.CRITIC,
                 description="Evaluate content quality and provide improvement feedback",
-                tools=["Read", "Glob"],
+                required_tools=["Read"],
+                optional_tools=["Glob", "Grep", "Skill"],
+                cardinality=RoleCardinality.EXACTLY_ONE,
+                default_model=self.critic_config.critic_model,
                 prompt_file="critic.txt",
             ),
         }
 
     def get_lead_prompt(self) -> str:
-        """Get lead agent prompt for critic-actor coordination."""
-        base_prompt = super().get_lead_prompt()
+        """Get lead agent prompt with runtime configuration injected."""
+        # Build agent list for template substitution
+        actors = self.get_agents_by_role("actor")
+        critics = self.get_agents_by_role("critic")
 
-        return (
-            base_prompt
-            + f"""
-# Critic-Actor Coordinator
+        agent_lines = []
+        if actors:
+            agent_lines.append(f"- Actor: {', '.join(actors)}")
+        if critics:
+            agent_lines.append(f"- Critic: {', '.join(critics)}")
+        agent_list = "\n".join(agent_lines) if agent_lines else "- (using defaults)"
 
-You are responsible for coordinating the iterative improvement loop between Actor and Critic.
+        # Inject runtime configuration into template variables
+        self._template_vars.update({
+            "max_iterations": str(self.critic_config.max_iterations),
+            "quality_threshold": str(self.critic_config.quality_threshold),
+            "agent_list": agent_list,
+        })
 
-# Rules
-1. Maximum iterations: {self.critic_config.max_iterations}
-2. Quality threshold: {self.critic_config.quality_threshold}
-3. Must first dispatch Actor to generate content
-4. Then dispatch Critic to evaluate
-5. If quality is below threshold, continue iterating
-
-# Workflow
-```
-while iteration < max_iterations:
-    content = Actor.generate(task, feedback)
-    evaluation = Critic.evaluate(content)
-    if evaluation.score >= threshold:
-        break
-    feedback = evaluation.feedback
-```
-
-# Available Agents
-
-## actor
-- Responsibility: Generate or improve content
-- Input: Task description + previous feedback (if any)
-- Output: Generated content
-
-## critic
-- Responsibility: Evaluate quality and provide feedback
-- Input: Content to evaluate
-- Output: Score + improvement suggestions
-
-# Final Output
-- Final version of content
-- Number of iterations
-- Final quality score
-"""
-        )
+        return super().get_lead_prompt()
 
     async def execute(
         self,

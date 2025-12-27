@@ -21,11 +21,12 @@ from claude_agent_framework.architectures.specialist_pool.config import (
 )
 from claude_agent_framework.architectures.specialist_pool.router import ExpertRouter
 from claude_agent_framework.core.base import (
-    AgentDefinitionConfig,
     AgentModelConfig,
     BaseArchitecture,
 )
 from claude_agent_framework.core.registry import register_architecture
+from claude_agent_framework.core.roles import AgentInstanceConfig, RoleDefinition
+from claude_agent_framework.core.types import RoleCardinality, RoleType
 
 if TYPE_CHECKING:
     from claude_agent_framework.utils import SubagentTracker, TranscriptWriter
@@ -37,12 +38,18 @@ class SpecialistPoolArchitecture(BaseArchitecture):
     Specialist Pool architecture for expert routing.
 
     Pattern: Expert Pool Dispatch
-    - Router: Analyzes query and selects experts
-    - Experts: Domain specialists handle specific topics
-    - Aggregator: Combines expert responses
+    - Specialists: Domain experts handle specific topics (1+ agents)
+
+    Role Definitions:
+        specialist: Domain expert for specific topics (required, 1+)
 
     Usage:
-        arch = SpecialistPoolArchitecture()
+        agents = [
+            AgentInstanceConfig(name="network-expert", role="specialist", ...),
+            AgentInstanceConfig(name="security-expert", role="specialist", ...),
+            AgentInstanceConfig(name="database-expert", role="specialist", ...),
+        ]
+        arch = SpecialistPoolArchitecture(agent_instances=agents)
         async for msg in arch.execute("How do I fix this SQL injection?"):
             print(msg)
     """
@@ -56,6 +63,8 @@ class SpecialistPoolArchitecture(BaseArchitecture):
         model_config: AgentModelConfig | None = None,
         prompts_dir: Path | None = None,
         files_dir: Path | None = None,
+        # Role-based configuration
+        agent_instances: list[AgentInstanceConfig] | None = None,
         # Business template and prompt customization
         business_template: str | None = None,
         custom_prompts_dir: Path | str | None = None,
@@ -70,6 +79,7 @@ class SpecialistPoolArchitecture(BaseArchitecture):
             model_config: Model configuration
             prompts_dir: Custom prompts directory
             files_dir: Custom files directory
+            agent_instances: List of agent instance configurations (role-based)
             business_template: Name of business template to use (optional)
             custom_prompts_dir: Application-level custom prompts directory (optional)
             prompt_overrides: Dict of agent_name -> override prompt content
@@ -85,54 +95,56 @@ class SpecialistPoolArchitecture(BaseArchitecture):
             model_config=model_config,
             prompts_dir=prompts_dir,
             files_dir=files_dir,
+            agent_instances=agent_instances,
             business_template=business_template,
             custom_prompts_dir=custom_prompts_dir,
             prompt_overrides=prompt_overrides,
             template_vars=template_vars,
         )
 
+    def get_role_definitions(self) -> dict[str, RoleDefinition]:
+        """
+        Get role definitions for specialist pool architecture.
+
+        Returns:
+            Dict mapping role_id to RoleDefinition
+        """
+        return {
+            "specialist": RoleDefinition(
+                role_type=RoleType.SPECIALIST,
+                description="Domain expert for specific technical topics",
+                required_tools=["Read"],
+                optional_tools=["WebSearch", "Bash", "Glob", "Grep", "Skill"],
+                cardinality=RoleCardinality.ONE_OR_MORE,
+                default_model=self.pool_config.router_model,
+                prompt_file="specialist.txt",
+            ),
+        }
+
     def get_agents(self) -> dict[str, AgentDefinitionConfig]:
-        """Get all expert agent definitions."""
+        """Get all expert agent definitions (legacy support)."""
+        # This method is kept for backward compatibility with config-based experts
+        from claude_agent_framework.core.base import AgentDefinitionConfig
+
         return {expert.agent.name: expert.agent for expert in self.pool_config.experts}
 
     def get_lead_prompt(self) -> str:
-        """Get lead agent prompt for routing."""
-        base_prompt = super().get_lead_prompt()
+        """Get lead agent prompt with runtime configuration injected."""
+        # Build expert list for template substitution
+        expert_lines = []
+        for e in self.pool_config.experts:
+            expert_lines.append(f"### {e.name}")
+            expert_lines.append(f"- Domain: {e.domain}")
+            expert_lines.append(f"- Responsibility: {e.agent.description}")
+            expert_lines.append("")
+        expert_list = "\n".join(expert_lines) if expert_lines else "- (no specialists configured)"
 
-        # Build expert descriptions
-        expert_desc = "\n".join(
-            f"## {e.name}\n- Domain: {e.domain}\n- Responsibility: {e.agent.description}"
-            for e in self.pool_config.experts
-        )
+        # Inject runtime configuration into template variables
+        self._template_vars.update({
+            "expert_list": expert_list,
+        })
 
-        return (
-            base_prompt
-            + f"""
-# Specialist Pool Coordinator
-
-You are the routing coordinator for the expert pool architecture, responsible for analyzing user questions and dispatching to appropriate experts.
-
-# Rules
-1. Analyze user question and determine which experts are needed
-2. Use the Task tool to dispatch questions to experts
-3. Can dispatch to multiple experts in parallel
-4. Aggregate expert responses for the user
-
-# Available Experts
-
-{expert_desc}
-
-# Routing Strategy
-- Match experts based on question keywords
-- Complex questions can be dispatched to multiple experts
-- Security-related questions should prioritize security_expert
-
-# Output Specification
-1. Explain selected experts and reasoning
-2. Dispatch tasks to experts
-3. Aggregate expert responses
-"""
-        )
+        return super().get_lead_prompt()
 
     async def execute(
         self,
