@@ -98,13 +98,13 @@ class ResearchArchitecture(BaseArchitecture):
             "researcher": AgentDefinitionConfig(
                 name="researcher",
                 description="Gather research data via web search, save to files/research_notes/",
-                tools=["WebSearch", "Write"],
+                tools=["WebSearch", "Write", "Skill"],
                 prompt_file="researcher.txt",
             ),
             "data-analyst": AgentDefinitionConfig(
                 name="data-analyst",
                 description="Analyze research data and generate visualizations, save to files/charts/",
-                tools=["Glob", "Read", "Bash", "Write"],
+                tools=["Glob", "Read", "Bash", "Write", "Skill"],
                 prompt_file="data_analyst.txt",
             ),
             "report-writer": AgentDefinitionConfig(
@@ -181,7 +181,7 @@ class ResearchArchitecture(BaseArchitecture):
         # Configure SDK options
         options = ClaudeAgentOptions(
             permission_mode="bypassPermissions",
-            setting_sources=["project"],
+            setting_sources=["project", "user"],
             system_prompt=lead_prompt,
             allowed_tools=["Task"],  # Lead only uses Task tool
             agents=agents,
