@@ -482,6 +482,30 @@ All 7 examples in [`examples/production/`](examples/production/) are complete an
 | [06_code_debugger](examples/production/06_code_debugger/) | Reflexion | Adaptive debugging |
 | [07_codebase_analysis](examples/production/07_codebase_analysis/) | MapReduce | Large codebase analysis |
 
+### Common Production Patterns
+
+All production examples follow these proven patterns:
+
+| Pattern | Implementation |
+|---------|----------------|
+| **Configuration-Driven** | YAML config files with validation, environment-specific settings, no hardcoded values |
+| **Structured Results** | Consistent JSON schema, programmatic access, multiple formats (JSON/Markdown/PDF) |
+| **Robust Error Handling** | Try/catch at I/O boundaries, graceful degradation, detailed error context |
+| **Comprehensive Logging** | JSONL tool tracking, human-readable transcripts, session-based organization |
+| **Production Testing** | Unit + integration tests, mock external dependencies, 100% pass requirement |
+
+### When to Use Each Architecture
+
+| Architecture | Use When | Example Scenarios |
+|--------------|----------|-------------------|
+| **Research** | Gathering data from multiple independent sources in parallel | Market research, competitive analysis, literature reviews |
+| **Pipeline** | Clear sequential stages with quality gates | Code review, content workflows, multi-step approvals |
+| **Critic-Actor** | Output needs iterative improvement against defined criteria | Content optimization, code refactoring, design iteration |
+| **Specialist Pool** | Requests need routing to domain experts | Technical support, Q&A systems, diagnostics |
+| **Debate** | Decision requires balanced pro/con analysis | Technology selection, architecture decisions, vendor evaluation |
+| **Reflexion** | Problem requires trial-and-error with learning | Debugging, root cause analysis, optimization |
+| **MapReduce** | Large dataset (500+ files) needs parallel processing | Codebase analysis, batch processing, large-scale audits |
+
 ---
 
 ## Requirements
