@@ -1938,5 +1938,321 @@ files: 1 file changed
 
 ---
 
-**文档最后更新**: 2025-12-26
-**状态**: ✅ v0.4.0 发布准备完成
+**文档最后更新**: 2025-12-27
+**状态**: ✅ v0.4.0 角色系统重构完成
+
+---
+
+## Phase 8: 角色类型系统重构（已完成）
+
+**完成时间**: 2025-12-27
+**状态**: ✅ 全部完成，242个测试通过
+
+### 设计目标
+
+将架构从"固定 agent 名称"模式重构为"角色类型系统"，实现：
+- **架构定义角色类型**（抽象）→ **业务配置实例化具体 agent**（具体）
+- 一个架构支持多种业务场景
+- 保持 business_templates 和 skills 完全兼容
+
+### 实现内容
+
+#### Phase 8.1: 核心类型系统
+
+**新建文件**:
+- `src/claude_agent_framework/core/roles.py` (300+行)
+
+**核心类**:
+
+##### RoleType 枚举
+```python
+class RoleType(str, Enum):
+    COORDINATOR = "coordinator"
+    WORKER = "worker"
+    PROCESSOR = "processor"
+    SYNTHESIZER = "synthesizer"
+    CRITIC = "critic"
+    JUDGE = "judge"
+    SPECIALIST = "specialist"
+    ADVOCATE = "advocate"
+    MAPPER = "mapper"
+    REDUCER = "reducer"
+    EXECUTOR = "executor"
+    REFLECTOR = "reflector"
+```
+
+##### RoleCardinality 枚举
+```python
+class RoleCardinality(str, Enum):
+    EXACTLY_ONE = "exactly_one"    # 必须1个
+    ONE_OR_MORE = "one_or_more"    # 1个或更多
+    ZERO_OR_MORE = "zero_or_more"  # 0个或更多
+    ZERO_OR_ONE = "zero_or_one"    # 0或1个
+```
+
+##### RoleDefinition 数据类
+```python
+@dataclass
+class RoleDefinition:
+    role_type: RoleType
+    description: str = ""
+    required_tools: list[str] = field(default_factory=list)
+    optional_tools: list[str] = field(default_factory=list)
+    cardinality: RoleCardinality = RoleCardinality.EXACTLY_ONE
+    default_model: str = "haiku"
+    prompt_file: str = ""
+```
+
+##### AgentInstanceConfig 数据类
+```python
+@dataclass
+class AgentInstanceConfig:
+    name: str
+    role: str
+    description: str = ""
+    tools: list[str] = field(default_factory=list)
+    prompt: str = ""
+    prompt_file: str = ""
+    model: str = ""
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_agent_definition(self, role_def: RoleDefinition, prompts_dir: Path) -> AgentDefinitionConfig:
+        """将 AgentInstanceConfig 转换为 AgentDefinitionConfig"""
+```
+
+##### RoleRegistry 类
+```python
+class RoleRegistry:
+    """角色注册表，验证 agent 实例是否满足角色约束"""
+
+    def register(self, role_id: str, role_def: RoleDefinition) -> None
+    def get(self, role_id: str) -> RoleDefinition | None
+    def list_roles(self) -> list[str]
+    def get_required_roles(self) -> list[str]
+    def get_optional_roles(self) -> list[str]
+    def validate_agents(self, agents: list[AgentInstanceConfig]) -> list[str]
+```
+
+#### Phase 8.2: BaseArchitecture 重构
+
+**修改文件**:
+- `src/claude_agent_framework/core/base.py`
+
+**新增方法和属性**:
+
+```python
+class BaseArchitecture(ABC):
+    def __init__(
+        self,
+        # ... 现有参数 ...
+        agent_instances: list[AgentInstanceConfig] | None = None,
+        business_template: str | None = None,
+        custom_prompts_dir: Path | str | None = None,
+        prompt_overrides: dict[str, str] | None = None,
+        template_vars: dict[str, Any] | None = None,
+    ) -> None:
+        # 角色管理
+        self._role_registry = RoleRegistry()
+        self._agent_instances: list[AgentInstanceConfig] = []
+        self._configured_agents: dict[str, AgentDefinitionConfig] = {}
+
+    @abstractmethod
+    def get_role_definitions(self) -> dict[str, RoleDefinition]:
+        """定义架构支持的角色类型（子类必须实现）"""
+        pass
+
+    def configure_agents(self, agents: list[AgentInstanceConfig]) -> None:
+        """从业务配置实例化 agents（验证角色约束）"""
+
+    def get_agents(self) -> dict[str, AgentDefinitionConfig]:
+        """返回已配置的 agents"""
+
+    def get_agents_by_role(self, role_id: str) -> list[str]:
+        """获取填充特定角色的 agent 名称"""
+
+    def to_sdk_agents(self) -> dict[str, Any]:
+        """转换为 SDK 格式，集成 PromptComposer 支持 business_template"""
+```
+
+#### Phase 8.3: Research 架构迁移
+
+**修改文件**:
+- `src/claude_agent_framework/architectures/research/orchestrator.py`
+
+**角色定义**:
+```python
+def get_role_definitions(self) -> dict[str, RoleDefinition]:
+    return {
+        "worker": RoleDefinition(
+            role_type=RoleType.WORKER,
+            description="Gather research data via web search",
+            required_tools=["WebSearch"],
+            optional_tools=["Write", "Skill", "Read"],
+            cardinality=RoleCardinality.ONE_OR_MORE,
+            default_model="haiku",
+            prompt_file="worker.txt",
+        ),
+        "processor": RoleDefinition(
+            role_type=RoleType.PROCESSOR,
+            description="Analyze research data",
+            required_tools=["Read", "Write"],
+            optional_tools=["Glob", "Bash", "Skill"],
+            cardinality=RoleCardinality.ZERO_OR_ONE,
+            default_model="haiku",
+            prompt_file="processor.txt",
+        ),
+        "synthesizer": RoleDefinition(
+            role_type=RoleType.SYNTHESIZER,
+            description="Generate final reports",
+            required_tools=["Write"],
+            optional_tools=["Skill", "Read", "Glob"],
+            cardinality=RoleCardinality.EXACTLY_ONE,
+            default_model="haiku",
+            prompt_file="synthesizer.txt",
+        ),
+    }
+```
+
+#### Phase 8.4: Session API 更新
+
+**修改文件**:
+- `src/claude_agent_framework/session.py`
+
+**新增参数**:
+```python
+def create_session(
+    architecture: ArchitectureType = "research",
+    *,
+    # ... 现有参数 ...
+    agent_instances: list[AgentInstanceConfig] | None = None,
+    business_template: str | None = None,
+    custom_prompts_dir: Path | str | None = None,
+    prompt_overrides: dict[str, str] | None = None,
+    template_vars: dict[str, Any] | None = None,
+) -> AgentSession:
+```
+
+#### Phase 8.5: 所有架构 business_template 兼容
+
+**已更新架构**（7个）:
+- ✅ research - 添加 custom_prompts_dir 参数
+- ✅ critic_actor - 已支持
+- ✅ debate - 已支持
+- ✅ mapreduce - 已支持
+- ✅ pipeline - 已支持
+- ✅ reflexion - 已支持
+- ✅ specialist_pool - 已支持
+
+**Prompt 优先级**:
+1. AgentInstanceConfig.prompt/prompt_file（最高）
+2. prompt_overrides[agent_name]
+3. custom_prompts_dir/<agent_name>.txt
+4. business_template/<agent_name>.txt
+5. RoleDefinition.prompt_file（最低）
+
+#### Phase 8.6: 测试
+
+**新建文件**:
+- `tests/core/test_roles.py` (21个测试)
+
+**测试覆盖**:
+- TestRoleType: 2个测试
+- TestRoleCardinality: 2个测试
+- TestRoleDefinition: 2个测试
+- TestAgentInstanceConfig: 2个测试
+- TestRoleRegistry: 6个测试
+- TestRoleRegistryValidation: 5个测试
+- TestAgentInstanceConfigToAgentDefinition: 2个测试
+
+**测试结果**: 242个测试全部通过 ✅
+
+### 使用示例
+
+#### Python API
+
+```python
+from claude_agent_framework import create_session
+from claude_agent_framework.core.roles import AgentInstanceConfig
+
+# 配置 agents
+agents = [
+    AgentInstanceConfig(
+        name="market-researcher",
+        role="worker",
+        description="Gather market data",
+    ),
+    AgentInstanceConfig(
+        name="tech-researcher",
+        role="worker",
+        description="Gather technology trends",
+    ),
+    AgentInstanceConfig(
+        name="analyst",
+        role="processor",
+        model="sonnet",
+    ),
+    AgentInstanceConfig(
+        name="writer",
+        role="synthesizer",
+    ),
+]
+
+# 创建会话
+session = create_session(
+    "research",
+    agent_instances=agents,
+    business_template="competitive_intelligence",
+    template_vars={"company_name": "Tesla Inc"},
+)
+
+# 运行
+async for msg in session.run("Analyze AI market trends"):
+    print(msg)
+```
+
+### 设计决策
+
+1. **强制角色配置**: `get_agents()` 前必须调用 `configure_agents()`
+2. **角色约束验证**: cardinality 必须满足，required_tools 必须包含
+3. **Prompt 组合**: 使用 PromptComposer 支持多层 prompt 叠加
+4. **完全向后兼容**: 其他 6 个架构无需修改即可使用
+
+### 文件清单
+
+**新建文件**:
+- `src/claude_agent_framework/core/roles.py` (300+行)
+- `tests/core/test_roles.py` (280行)
+
+**修改文件**:
+- `src/claude_agent_framework/core/base.py` (+50行)
+- `src/claude_agent_framework/session.py` (+10行)
+- `src/claude_agent_framework/architectures/research/orchestrator.py` (+30行)
+
+### 测试统计
+
+| 模块 | 测试数 | 状态 |
+|------|--------|------|
+| 原有测试 | 221 | ✅ 通过 |
+| 角色系统测试 | 21 | ✅ 通过 |
+| **总计** | **242** | ✅ **100%** |
+
+#### Phase 8.7: 文档
+
+**新建文件**:
+- `docs/ROLE_BASED_ARCHITECTURE.md` - 英文版角色系统文档
+- `docs/ROLE_BASED_ARCHITECTURE_CN.md` - 中文版角色系统文档
+
+**文档内容**:
+- 核心概念（RoleType, RoleCardinality, RoleDefinition, AgentInstanceConfig, RoleRegistry）
+- 使用示例（Python API 和 YAML 配置）
+- 架构角色映射表（7个架构的角色定义）
+- 提示优先级系统（5层优先级）
+- 验证机制详解
+- business_templates 和 skills 兼容性说明
+- 自定义架构实现指南
+- API 参考和最佳实践
+
+**完成时间**: 2025-12-27
+**状态**: ✅ Phase 8 全部完成
+
+---

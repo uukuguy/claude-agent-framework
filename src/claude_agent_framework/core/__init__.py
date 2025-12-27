@@ -6,6 +6,7 @@ Provides:
 - AgentSession: Unified session management
 - Registry: Architecture registration and discovery
 - Type definitions: Framework-wide type aliases and enums
+- Role definitions: Role-based architecture abstractions
 """
 
 from claude_agent_framework.core.base import (
@@ -17,11 +18,19 @@ from claude_agent_framework.core.registry import (
     list_architectures,
     register_architecture,
 )
+from claude_agent_framework.core.roles import (
+    AgentInstanceConfig,
+    RoleDefinition,
+    RoleRegistry,
+)
 from claude_agent_framework.core.session import AgentSession
 from claude_agent_framework.core.types import (
     ArchitectureType,
     ModelType,
     ModelTypeStr,
+    RoleCardinality,
+    RoleType,
+    RoleTypeStr,
 )
 
 __all__ = [
@@ -38,4 +47,11 @@ __all__ = [
     "ArchitectureType",
     "ModelType",
     "ModelTypeStr",
+    # Role definitions
+    "RoleType",
+    "RoleTypeStr",
+    "RoleCardinality",
+    "RoleDefinition",
+    "AgentInstanceConfig",
+    "RoleRegistry",
 ]

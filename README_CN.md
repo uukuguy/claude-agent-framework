@@ -2,7 +2,7 @@
 
 基于 [Claude Agent SDK](https://github.com/anthropics/claude-code-sdk-python) 的生产级多智能体编排框架。设计、组合和部署复杂的 AI 工作流，提供开箱即用的架构模式。
 
-[English Documentation](README.md) | [最佳实践指南](docs/BEST_PRACTICES_CN.md)
+[English Documentation](README.md) | [最佳实践指南](docs/BEST_PRACTICES_CN.md) | [角色类型系统](docs/ROLE_BASED_ARCHITECTURE_CN.md)
 
 ## 概述
 
@@ -100,6 +100,57 @@ Claude Agent Framework 通过**智能体专业化与编排**解决这个问题�
 | **debate** | 决策支持、风险评估 | 正反辩论 + 裁判 |
 | **reflexion** | 复杂问题求解、调试 | 执行-反思-改进循环 |
 | **mapreduce** | 大规模分析、批量处理 | 分治并行 + 聚合 |
+
+## 角色类型系统
+
+框架采用**角色类型架构**，将抽象的角色定义与具体的智能体实例分离。这使得单一架构能够通过灵活的智能体配置支持多种业务场景。
+
+### 核心概念
+
+| 概念 | 描述 |
+|------|------|
+| **RoleType** | 语义角色类型（WORKER、PROCESSOR、SYNTHESIZER 等） |
+| **RoleCardinality** | 数量约束（EXACTLY_ONE、ONE_OR_MORE 等） |
+| **RoleDefinition** | 架构级角色规范，含工具和约束定义 |
+| **AgentInstanceConfig** | 业务级具体智能体配置 |
+
+### 使用示例
+
+```python
+from claude_agent_framework import create_session
+from claude_agent_framework.core.roles import AgentInstanceConfig
+
+# 为特定业务需求定义智能体实例
+agents = [
+    AgentInstanceConfig(
+        name="market-researcher",
+        role="worker",
+        description="市场数据收集专员",
+        prompt_file="prompts/market_researcher.txt",
+    ),
+    AgentInstanceConfig(
+        name="tech-researcher",
+        role="worker",
+        description="技术趋势分析师",
+    ),
+    AgentInstanceConfig(
+        name="data-analyst",
+        role="processor",
+        model="sonnet",
+    ),
+    AgentInstanceConfig(
+        name="report-writer",
+        role="synthesizer",
+    ),
+]
+
+# 使用角色配置创建会话
+session = create_session("research", agent_instances=agents)
+async for msg in session.run("分析 AI 市场趋势"):
+    print(msg)
+```
+
+详细文档请参阅 [角色类型系统指南](docs/ROLE_BASED_ARCHITECTURE_CN.md)。
 
 ## 生产级示例
 
@@ -699,6 +750,8 @@ claude_agent_framework/
 
 ### 架构与设计 (v0.4.0 新功能)
 
+- [角色类型系统指南](docs/ROLE_BASED_ARCHITECTURE_CN.md) - 角色类型、约束和智能体实例化
+- [Role-Based Architecture Guide (English)](docs/ROLE_BASED_ARCHITECTURE.md)
 - [架构选择指南](docs/guides/architecture_selection/GUIDE_CN.md) - 决策流程图和对比
 - [Architecture Selection Guide (English)](docs/guides/architecture_selection/GUIDE.md)
 

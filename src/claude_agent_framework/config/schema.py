@@ -2,6 +2,11 @@
 Pydantic validation schemas for configuration.
 
 Provides type-safe configuration with validation and defaults.
+
+Supports both legacy agent configuration and new role-based configuration:
+- AgentConfigSchema: Legacy agent definition
+- AgentInstanceSchema: Role-based agent instance configuration
+- RoleBasedConfigSchema: Complete role-based configuration
 """
 
 from __future__ import annotations
@@ -10,7 +15,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from claude_agent_framework.core.types import ModelType
+from claude_agent_framework.core.types import ModelType, RoleCardinality
 
 try:
     from pydantic import BaseModel, Field, field_validator, model_validator
@@ -51,6 +56,198 @@ VALID_TOOLS = [
     "KillShell",
     "TaskOutput",
 ]
+
+
+# ============================================================================
+# Role-Based Configuration Schemas (New)
+# ============================================================================
+
+
+class AgentInstanceSchema(BaseModel):
+    """
+    Pydantic schema for role-based agent instance configuration.
+
+    This is the new way to configure agents - by specifying which role
+    each agent fills in the architecture.
+
+    Attributes:
+        name: Unique agent identifier (lowercase with hyphens)
+        role: Role ID this agent fills (e.g., "worker", "processor")
+        description: Optional custom description (defaults to role description)
+        tools: Additional tools beyond role requirements
+        prompt: Inline prompt content (appends to role prompt)
+        prompt_file: Prompt file path (appends to role prompt)
+        model: Model override (defaults to role default)
+        metadata: Custom metadata for business logic
+    """
+
+    name: str = Field(
+        ...,
+        pattern=r"^[a-z][a-z0-9-]*$",
+        description="Agent name (lowercase with hyphens, e.g., 'market-researcher')",
+    )
+    role: str = Field(
+        ...,
+        pattern=r"^[a-z][a-z0-9_]*$",
+        description="Role ID to fill (e.g., 'worker', 'processor', 'synthesizer')",
+    )
+    description: str = Field(
+        default="",
+        description="Optional custom description (appends to role description)",
+    )
+    tools: list[str] = Field(
+        default_factory=list,
+        description="Additional tools beyond role requirements",
+    )
+    prompt: str = Field(
+        default="",
+        description="Inline prompt content (appends to role prompt)",
+    )
+    prompt_file: str = Field(
+        default="",
+        description="Prompt file path relative to prompts directory",
+    )
+    model: str = Field(
+        default="",
+        description="Model override (haiku/sonnet/opus), defaults to role default",
+    )
+    metadata: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Custom metadata for business logic",
+    )
+
+    @field_validator("tools")
+    @classmethod
+    def validate_tools(cls, v: list[str]) -> list[str]:
+        """Validate that all tools are valid."""
+        if not v:
+            return v
+
+        invalid = [tool for tool in v if tool not in VALID_TOOLS]
+        if invalid:
+            raise ValueError(f"Invalid tools: {invalid}. Valid tools are: {', '.join(VALID_TOOLS)}")
+        return v
+
+    @field_validator("model")
+    @classmethod
+    def validate_model(cls, v: str) -> str:
+        """Validate model name if provided."""
+        if v and v not in ["haiku", "sonnet", "opus", ""]:
+            raise ValueError(f"Invalid model: {v}. Must be haiku, sonnet, or opus")
+        return v
+
+    def to_agent_instance_config(self):
+        """
+        Convert to AgentInstanceConfig dataclass.
+
+        Returns:
+            AgentInstanceConfig instance
+        """
+        from claude_agent_framework.core.roles import AgentInstanceConfig
+
+        return AgentInstanceConfig(
+            name=self.name,
+            role=self.role,
+            description=self.description,
+            tools=self.tools,
+            prompt=self.prompt,
+            prompt_file=self.prompt_file,
+            model=self.model,
+            metadata=self.metadata,
+        )
+
+
+class RoleBasedConfigSchema(BaseModel):
+    """
+    Complete configuration schema for role-based architecture setup.
+
+    This is the recommended configuration format for new projects.
+    Architectures define roles; this config specifies which agents fill them.
+
+    Example YAML:
+        architecture: research
+        agents:
+          - name: market-researcher
+            role: worker
+            description: Gather market data and trends
+          - name: tech-researcher
+            role: worker
+            description: Gather technology trends
+          - name: analyst
+            role: processor
+            model: sonnet
+          - name: writer
+            role: synthesizer
+        prompts:
+          prompts_dir: ./prompts
+          template_vars:
+            company_name: Tesla Inc
+        models:
+          default: haiku
+          analyst: sonnet
+
+    Attributes:
+        architecture: Architecture name (research, pipeline, etc.)
+        agents: List of agent instance configurations
+        prompts: Prompts configuration
+        models: Model configuration (default + overrides)
+        settings: Architecture-specific settings
+    """
+
+    architecture: str = Field(
+        default="research",
+        description="Architecture pattern to use",
+    )
+    agents: list[AgentInstanceSchema] = Field(
+        default_factory=list,
+        description="Agent instance configurations mapping to roles",
+    )
+    prompts: "PromptsConfigSchema" = Field(
+        default_factory=lambda: PromptsConfigSchema(),
+        description="Prompts configuration",
+    )
+    models: dict[str, str] = Field(
+        default_factory=lambda: {"default": "haiku"},
+        description="Model configuration: {default: model, agent_name: model}",
+    )
+    settings: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Architecture-specific settings",
+    )
+
+    @field_validator("models")
+    @classmethod
+    def validate_models(cls, v: dict[str, str]) -> dict[str, str]:
+        """Validate all model values."""
+        valid_models = ["haiku", "sonnet", "opus"]
+        for key, model in v.items():
+            if model not in valid_models:
+                raise ValueError(
+                    f"Invalid model '{model}' for '{key}'. Must be one of: {valid_models}"
+                )
+        return v
+
+    def get_agent_instances(self):
+        """
+        Convert agent schemas to AgentInstanceConfig list.
+
+        Returns:
+            List of AgentInstanceConfig instances
+        """
+        return [agent.to_agent_instance_config() for agent in self.agents]
+
+    def get_template_vars(self) -> dict[str, Any]:
+        """Get template variables from prompts config."""
+        return self.prompts.template_vars
+
+    def get_prompts_dir(self) -> str | None:
+        """Get prompts directory from prompts config."""
+        return self.prompts.prompts_dir
+
+
+# ============================================================================
+# Legacy Configuration Schemas
+# ============================================================================
 
 
 class AgentConfigSchema(BaseModel):

@@ -50,6 +50,65 @@
 
 ---
 
+## 角色类型配置
+
+每个架构支持**角色类型配置**，允许您在遵循角色约束的前提下自定义智能体实例。
+
+### 架构角色映射
+
+| 架构 | 角色 | 数量约束 | 描述 |
+|------|------|----------|------|
+| **research** | worker | 1+ | 数据收集工作者 |
+| | processor | 0-1 | 可选的数据处理者 |
+| | synthesizer | 1 | 结果综合者 |
+| **pipeline** | stage_executor | 1+ | 顺序阶段执行者 |
+| **critic_actor** | actor | 1 | 内容生成者 |
+| | critic | 1 | 质量评估者 |
+| **specialist_pool** | specialist | 1+ | 领域专家 |
+| **debate** | advocate | 2+ | 立场倡导者 |
+| | judge | 1 | 决策者 |
+| **reflexion** | executor | 1 | 任务执行者 |
+| | reflector | 1 | 自我反思者 |
+| **mapreduce** | mapper | 1+ | 并行映射者 |
+| | reducer | 1 | 结果归约者 |
+
+### 配置示例
+
+```python
+from claude_agent_framework import create_session
+from claude_agent_framework.core.roles import AgentInstanceConfig
+
+# 使用自定义智能体的 Research 架构
+agents = [
+    AgentInstanceConfig(
+        name="market-researcher",
+        role="worker",
+        description="市场数据收集",
+        prompt_file="prompts/market.txt",
+    ),
+    AgentInstanceConfig(
+        name="tech-researcher",
+        role="worker",
+        description="技术趋势分析",
+    ),
+    AgentInstanceConfig(
+        name="analyst",
+        role="processor",
+        model="sonnet",
+    ),
+    AgentInstanceConfig(
+        name="writer",
+        role="synthesizer",
+    ),
+]
+
+session = create_session("research", agent_instances=agents)
+```
+
+详细角色配置请参阅 [角色类型系统指南](../../ROLE_BASED_ARCHITECTURE_CN.md)。
+
+---
+
 ## 详细架构概况
 
 ### 1. Research（扇出/扇入）

@@ -676,6 +676,107 @@ prompts:
 4. `business_templates/<template>/<agent>.txt` - 业务模板
 5. 空（仅使用架构核心提示词）- 默认
 
+### 7.5 角色类型系统
+
+框架支持**角色类型架构**，将抽象的角色定义与具体的智能体实例分离，实现灵活的多业务配置。
+
+#### 核心概念
+
+| 概念 | 描述 |
+|------|------|
+| **RoleType** | 语义角色类型枚举（WORKER、PROCESSOR、SYNTHESIZER 等） |
+| **RoleCardinality** | 数量约束（EXACTLY_ONE、ONE_OR_MORE、ZERO_OR_MORE、ZERO_OR_ONE） |
+| **RoleDefinition** | 架构级角色规范，包含工具和约束定义 |
+| **AgentInstanceConfig** | 业务级具体智能体配置 |
+| **RoleRegistry** | 验证智能体实例是否满足角色约束 |
+
+#### 角色类型
+
+```python
+from claude_agent_framework.core.types import RoleType
+
+class RoleType(str, Enum):
+    COORDINATOR = "coordinator"   # 任务编排者
+    WORKER = "worker"             # 数据收集者
+    PROCESSOR = "processor"       # 数据处理者
+    SYNTHESIZER = "synthesizer"   # 结果综合者
+    CRITIC = "critic"             # 质量评估者
+    JUDGE = "judge"               # 决策制定者
+    SPECIALIST = "specialist"     # 领域专家
+    ADVOCATE = "advocate"         # 立场倡导者
+    MAPPER = "mapper"             # 并行映射者
+    REDUCER = "reducer"           # 结果归约者
+    EXECUTOR = "executor"         # 任务执行者
+    REFLECTOR = "reflector"       # 自我反思者
+```
+
+#### 智能体实例配置
+
+```python
+from claude_agent_framework import create_session
+from claude_agent_framework.core.roles import AgentInstanceConfig
+
+# 为特定业务需求定义智能体实例
+agents = [
+    AgentInstanceConfig(
+        name="market-researcher",
+        role="worker",
+        description="市场数据收集专员",
+        prompt_file="prompts/market_researcher.txt",
+    ),
+    AgentInstanceConfig(
+        name="tech-researcher",
+        role="worker",
+        description="技术趋势分析师",
+        prompt_file="prompts/tech_researcher.txt",
+    ),
+    AgentInstanceConfig(
+        name="data-analyst",
+        role="processor",
+        model="sonnet",
+        description="数据分析专家",
+    ),
+    AgentInstanceConfig(
+        name="report-writer",
+        role="synthesizer",
+        description="报告生成专员",
+    ),
+]
+
+# 使用角色配置创建会话
+session = create_session(
+    "research",
+    agent_instances=agents,
+    business_template="competitive_intelligence",
+)
+```
+
+#### 架构角色映射
+
+每个架构定义了特定的角色及其数量约束：
+
+| 架构 | 角色定义 | 模式 |
+|------|---------|------|
+| **research** | worker (1+), processor (0-1), synthesizer (1) | 主从协调 |
+| **pipeline** | stage_executor (1+) | 顺序阶段 |
+| **critic_actor** | actor (1), critic (1) | 生成-评估 |
+| **specialist_pool** | specialist (1+) | 专家路由 |
+| **debate** | advocate (2+), judge (1) | 辩论协商 |
+| **reflexion** | executor (1), reflector (1) | 执行-反思 |
+| **mapreduce** | mapper (1+), reducer (1) | 并行映射-归约 |
+
+#### 角色架构下的提示词优先级
+
+使用角色类型架构时，提示词组合按以下优先级：
+
+1. **AgentInstanceConfig.prompt** - 直接指定的提示词内容（最高）
+2. **prompt_overrides[agent_name]** - 会话级覆盖
+3. **custom_prompts_dir/<agent_name>.txt** - 自定义提示词目录
+4. **business_templates/<template>/<agent_name>.txt** - 业务模板
+5. **RoleDefinition.prompt_file** - 角色基础提示词（最低）
+
+详细文档请参阅 [角色类型系统指南](ROLE_BASED_ARCHITECTURE_CN.md)。
+
 ---
 
 ## 8. 状态管理

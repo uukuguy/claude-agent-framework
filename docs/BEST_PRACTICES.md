@@ -704,6 +704,107 @@ When composing the final prompt, the system follows this priority order:
 4. `business_templates/<template>/<agent>.txt` - Business template
 5. Empty (use only architecture core prompt) - Default
 
+### 7.5 Role-Based Architecture
+
+The framework supports a **Role-Based Architecture** that separates abstract role definitions from concrete agent instances, enabling flexible multi-business configuration.
+
+#### Core Concepts
+
+| Concept | Description |
+|---------|-------------|
+| **RoleType** | Semantic role type enum (WORKER, PROCESSOR, SYNTHESIZER, etc.) |
+| **RoleCardinality** | Quantity constraints (EXACTLY_ONE, ONE_OR_MORE, ZERO_OR_MORE, ZERO_OR_ONE) |
+| **RoleDefinition** | Architecture-level role specification with tools and constraints |
+| **AgentInstanceConfig** | Business-level concrete agent configuration |
+| **RoleRegistry** | Validates agent instances against role constraints |
+
+#### Role Types
+
+```python
+from claude_agent_framework.core.types import RoleType
+
+class RoleType(str, Enum):
+    COORDINATOR = "coordinator"   # Task orchestrator
+    WORKER = "worker"             # Data gatherer
+    PROCESSOR = "processor"       # Data processor
+    SYNTHESIZER = "synthesizer"   # Result synthesizer
+    CRITIC = "critic"             # Quality evaluator
+    JUDGE = "judge"               # Decision maker
+    SPECIALIST = "specialist"     # Domain expert
+    ADVOCATE = "advocate"         # Position advocate
+    MAPPER = "mapper"             # Parallel mapper
+    REDUCER = "reducer"           # Result reducer
+    EXECUTOR = "executor"         # Task executor
+    REFLECTOR = "reflector"       # Self-reflector
+```
+
+#### Agent Instance Configuration
+
+```python
+from claude_agent_framework import create_session
+from claude_agent_framework.core.roles import AgentInstanceConfig
+
+# Define agent instances for specific business needs
+agents = [
+    AgentInstanceConfig(
+        name="market-researcher",
+        role="worker",
+        description="Market data collection specialist",
+        prompt_file="prompts/market_researcher.txt",
+    ),
+    AgentInstanceConfig(
+        name="tech-researcher",
+        role="worker",
+        description="Technology trends analyst",
+        prompt_file="prompts/tech_researcher.txt",
+    ),
+    AgentInstanceConfig(
+        name="data-analyst",
+        role="processor",
+        model="sonnet",
+        description="Data analysis expert",
+    ),
+    AgentInstanceConfig(
+        name="report-writer",
+        role="synthesizer",
+        description="Report generation specialist",
+    ),
+]
+
+# Create session with role-based configuration
+session = create_session(
+    "research",
+    agent_instances=agents,
+    business_template="competitive_intelligence",
+)
+```
+
+#### Architecture Role Mappings
+
+Each architecture defines specific roles with cardinality constraints:
+
+| Architecture | Role Definitions | Pattern |
+|--------------|-----------------|---------|
+| **research** | worker (1+), processor (0-1), synthesizer (1) | Master-worker |
+| **pipeline** | stage_executor (1+) | Sequential stages |
+| **critic_actor** | actor (1), critic (1) | Generate-evaluate |
+| **specialist_pool** | specialist (1+) | Expert routing |
+| **debate** | advocate (2+), judge (1) | Deliberation |
+| **reflexion** | executor (1), reflector (1) | Execute-reflect |
+| **mapreduce** | mapper (1+), reducer (1) | Parallel map-reduce |
+
+#### Prompt Priority with Role-Based Architecture
+
+When using role-based architecture, prompt composition follows this priority:
+
+1. **AgentInstanceConfig.prompt** - Direct prompt content (highest)
+2. **prompt_overrides[agent_name]** - Session-level override
+3. **custom_prompts_dir/<agent_name>.txt** - Custom prompts directory
+4. **business_templates/<template>/<agent_name>.txt** - Business template
+5. **RoleDefinition.prompt_file** - Role base prompt (lowest)
+
+For detailed documentation, see [Role-Based Architecture Guide](ROLE_BASED_ARCHITECTURE.md).
+
 ---
 
 ## 8. State Management

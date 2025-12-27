@@ -50,6 +50,65 @@ Start: What is your task?
 
 ---
 
+## Role-Based Configuration
+
+Each architecture supports **Role-Based Configuration** allowing you to customize agent instances while respecting role constraints.
+
+### Architecture Role Mappings
+
+| Architecture | Roles | Cardinality | Description |
+|--------------|-------|-------------|-------------|
+| **research** | worker | 1+ | Data gathering workers |
+| | processor | 0-1 | Optional data processor |
+| | synthesizer | 1 | Result synthesizer |
+| **pipeline** | stage_executor | 1+ | Sequential stage executors |
+| **critic_actor** | actor | 1 | Content generator |
+| | critic | 1 | Quality evaluator |
+| **specialist_pool** | specialist | 1+ | Domain experts |
+| **debate** | advocate | 2+ | Position advocates |
+| | judge | 1 | Decision maker |
+| **reflexion** | executor | 1 | Task executor |
+| | reflector | 1 | Self-reflector |
+| **mapreduce** | mapper | 1+ | Parallel mappers |
+| | reducer | 1 | Result reducer |
+
+### Configuration Example
+
+```python
+from claude_agent_framework import create_session
+from claude_agent_framework.core.roles import AgentInstanceConfig
+
+# Research architecture with custom agents
+agents = [
+    AgentInstanceConfig(
+        name="market-researcher",
+        role="worker",
+        description="Market data collection",
+        prompt_file="prompts/market.txt",
+    ),
+    AgentInstanceConfig(
+        name="tech-researcher",
+        role="worker",
+        description="Technology trends",
+    ),
+    AgentInstanceConfig(
+        name="analyst",
+        role="processor",
+        model="sonnet",
+    ),
+    AgentInstanceConfig(
+        name="writer",
+        role="synthesizer",
+    ),
+]
+
+session = create_session("research", agent_instances=agents)
+```
+
+For detailed role configuration, see [Role-Based Architecture Guide](../../ROLE_BASED_ARCHITECTURE.md).
+
+---
+
 ## Detailed Architecture Profiles
 
 ### 1. Research (Fan-out/Fan-in)

@@ -12,8 +12,9 @@ This document provides complete API reference for Claude Agent Framework's core 
 1. [Initialization API](#initialization-api)
 2. [AgentSession](#agentsession)
 3. [BaseArchitecture](#basearchitecture)
-4. [Configuration Classes](#configuration-classes)
-5. [Utility Functions](#utility-functions)
+4. [Role-Based Architecture](#role-based-architecture)
+5. [Configuration Classes](#configuration-classes)
+6. [Utility Functions](#utility-functions)
 
 ---
 
@@ -604,6 +605,234 @@ def files_dir(self) -> Path
 ```
 
 **Returns**: `Path` to files directory (default: `files/`)
+
+---
+
+## Role-Based Architecture
+
+The Role-Based Architecture system provides a clean separation between role definitions (abstract) and agent instances (concrete).
+
+### `RoleType`
+
+Enum defining semantic role types.
+
+```python
+from claude_agent_framework.core.types import RoleType
+
+class RoleType(str, Enum):
+    COORDINATOR = "coordinator"   # Task orchestrator
+    WORKER = "worker"             # Data gatherer
+    PROCESSOR = "processor"       # Data processor
+    SYNTHESIZER = "synthesizer"   # Result synthesizer
+    CRITIC = "critic"             # Quality evaluator
+    JUDGE = "judge"               # Decision maker
+    SPECIALIST = "specialist"     # Domain expert
+    ADVOCATE = "advocate"         # Position advocate
+    MAPPER = "mapper"             # Parallel mapper
+    REDUCER = "reducer"           # Result reducer
+    EXECUTOR = "executor"         # Task executor
+    REFLECTOR = "reflector"       # Self-reflector
+```
+
+---
+
+### `RoleCardinality`
+
+Enum defining quantity constraints for roles.
+
+```python
+from claude_agent_framework.core.types import RoleCardinality
+
+class RoleCardinality(str, Enum):
+    EXACTLY_ONE = "exactly_one"   # Must have exactly 1
+    ONE_OR_MORE = "one_or_more"   # At least 1 (1-N)
+    ZERO_OR_MORE = "zero_or_more" # Any number (0-N)
+    ZERO_OR_ONE = "zero_or_one"   # Optional (0-1)
+```
+
+---
+
+### `RoleDefinition`
+
+Architecture-level role constraint definition.
+
+```python
+from claude_agent_framework.core.roles import RoleDefinition
+
+@dataclass
+class RoleDefinition:
+    role_type: RoleType
+    description: str = ""
+    required_tools: list[str] = field(default_factory=list)
+    optional_tools: list[str] = field(default_factory=list)
+    cardinality: RoleCardinality = RoleCardinality.EXACTLY_ONE
+    default_model: str = "haiku"
+    prompt_file: str = ""
+```
+
+**Attributes**:
+
+| Attribute | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `role_type` | `RoleType` | Required | Semantic role type |
+| `description` | `str` | `""` | Role description |
+| `required_tools` | `list[str]` | `[]` | Tools the role must have |
+| `optional_tools` | `list[str]` | `[]` | Additional tools allowed |
+| `cardinality` | `RoleCardinality` | `EXACTLY_ONE` | Quantity constraints |
+| `default_model` | `str` | `"haiku"` | Default model for this role |
+| `prompt_file` | `str` | `""` | Base prompt file path |
+
+---
+
+### `AgentInstanceConfig`
+
+Business-level concrete agent configuration.
+
+```python
+from claude_agent_framework.core.roles import AgentInstanceConfig
+
+@dataclass
+class AgentInstanceConfig:
+    name: str
+    role: str
+    description: str = ""
+    tools: list[str] = field(default_factory=list)
+    prompt: str = ""
+    prompt_file: str = ""
+    model: str = ""
+    metadata: dict[str, Any] = field(default_factory=dict)
+```
+
+**Attributes**:
+
+| Attribute | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `name` | `str` | Required | Unique agent name |
+| `role` | `str` | Required | Role ID (must match architecture role) |
+| `description` | `str` | `""` | Agent description |
+| `tools` | `list[str]` | `[]` | Additional tools for this agent |
+| `prompt` | `str` | `""` | Direct prompt content (highest priority) |
+| `prompt_file` | `str` | `""` | Prompt file path |
+| `model` | `str` | `""` | Model override (uses role default if empty) |
+| `metadata` | `dict[str, Any]` | `{}` | Custom metadata |
+
+**Example**:
+
+```python
+from claude_agent_framework.core.roles import AgentInstanceConfig
+
+agent = AgentInstanceConfig(
+    name="market-researcher",
+    role="worker",
+    description="Market data collection specialist",
+    prompt_file="prompts/market_researcher.txt",
+    model="sonnet",
+)
+```
+
+---
+
+### `RoleRegistry`
+
+Validates agent configurations against role constraints.
+
+```python
+from claude_agent_framework.core.roles import RoleRegistry
+
+class RoleRegistry:
+    def register(self, role_id: str, role_def: RoleDefinition) -> None:
+        """Register a role definition."""
+
+    def get(self, role_id: str) -> RoleDefinition | None:
+        """Get role definition by ID."""
+
+    def validate_agents(
+        self, agents: list[AgentInstanceConfig]
+    ) -> list[str]:
+        """Validate agent instances against role constraints.
+        Returns list of error messages (empty if valid)."""
+```
+
+**Example**:
+
+```python
+from claude_agent_framework.core.roles import RoleRegistry, RoleDefinition, AgentInstanceConfig
+from claude_agent_framework.core.types import RoleType, RoleCardinality
+
+registry = RoleRegistry()
+
+# Register role definitions
+registry.register("worker", RoleDefinition(
+    role_type=RoleType.WORKER,
+    cardinality=RoleCardinality.ONE_OR_MORE,
+    required_tools=["WebSearch"],
+))
+registry.register("synthesizer", RoleDefinition(
+    role_type=RoleType.SYNTHESIZER,
+    cardinality=RoleCardinality.EXACTLY_ONE,
+    required_tools=["Write"],
+))
+
+# Validate agent instances
+agents = [
+    AgentInstanceConfig(name="researcher-1", role="worker"),
+    AgentInstanceConfig(name="researcher-2", role="worker"),
+    AgentInstanceConfig(name="writer", role="synthesizer"),
+]
+
+errors = registry.validate_agents(agents)
+if errors:
+    raise ValueError(f"Configuration errors: {errors}")
+```
+
+---
+
+### `create_session()` with Role-Based Configuration
+
+The `create_session()` function supports role-based agent configuration.
+
+```python
+def create_session(
+    architecture: str = "research",
+    *,
+    model: str = "haiku",
+    agent_instances: list[AgentInstanceConfig] | None = None,
+    business_template: str | None = None,
+    custom_prompts_dir: Path | str | None = None,
+    prompt_overrides: dict[str, str] | None = None,
+    template_vars: dict[str, Any] | None = None,
+    # ... other parameters
+) -> AgentSession
+```
+
+**New Parameters**:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `agent_instances` | `list[AgentInstanceConfig] \| None` | Agent instance configurations |
+
+**Example**:
+
+```python
+from claude_agent_framework import create_session
+from claude_agent_framework.core.roles import AgentInstanceConfig
+
+agents = [
+    AgentInstanceConfig(name="market-researcher", role="worker"),
+    AgentInstanceConfig(name="tech-researcher", role="worker"),
+    AgentInstanceConfig(name="analyst", role="processor", model="sonnet"),
+    AgentInstanceConfig(name="writer", role="synthesizer"),
+]
+
+session = create_session(
+    "research",
+    agent_instances=agents,
+    business_template="competitive_intelligence",
+)
+
+async for msg in session.run("Analyze AI market trends"):
+    print(msg)
+```
 
 ---
 

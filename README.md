@@ -6,7 +6,7 @@
 
 A production-ready multi-agent orchestration framework built on [Claude Agent SDK](https://github.com/anthropics/claude-code-sdk-python). Design, compose, and deploy complex AI workflows with pre-built architecture patterns.
 
-[中文文档](README_CN.md) | [Best Practices Guide](docs/BEST_PRACTICES.md)
+[中文文档](README_CN.md) | [Best Practices Guide](docs/BEST_PRACTICES.md) | [Role-Based Architecture](docs/ROLE_BASED_ARCHITECTURE.md)
 
 ## Overview
 
@@ -123,6 +123,57 @@ asyncio.run(main())
 | **debate** | Decision support | Pro-con deliberation with judge |
 | **reflexion** | Complex problem solving | Execute-reflect-improve cycle |
 | **mapreduce** | Large-scale analysis | Parallel map with aggregation |
+
+## Role-Based Architecture
+
+The framework uses a **Role-Based Architecture** that separates abstract role definitions from concrete agent instances. This enables a single architecture to support multiple business scenarios through flexible agent configuration.
+
+### Key Concepts
+
+| Concept | Description |
+|---------|-------------|
+| **RoleType** | Semantic role type (WORKER, PROCESSOR, SYNTHESIZER, etc.) |
+| **RoleCardinality** | Quantity constraints (EXACTLY_ONE, ONE_OR_MORE, etc.) |
+| **RoleDefinition** | Architecture-level role specification with tools and constraints |
+| **AgentInstanceConfig** | Business-level concrete agent configuration |
+
+### Usage Example
+
+```python
+from claude_agent_framework import create_session
+from claude_agent_framework.core.roles import AgentInstanceConfig
+
+# Define agent instances for specific business needs
+agents = [
+    AgentInstanceConfig(
+        name="market-researcher",
+        role="worker",
+        description="Market data collection specialist",
+        prompt_file="prompts/market_researcher.txt",
+    ),
+    AgentInstanceConfig(
+        name="tech-researcher",
+        role="worker",
+        description="Technology trends analyst",
+    ),
+    AgentInstanceConfig(
+        name="data-analyst",
+        role="processor",
+        model="sonnet",
+    ),
+    AgentInstanceConfig(
+        name="report-writer",
+        role="synthesizer",
+    ),
+]
+
+# Create session with role-based configuration
+session = create_session("research", agent_instances=agents)
+async for msg in session.run("Analyze AI market trends"):
+    print(msg)
+```
+
+For detailed documentation, see [Role-Based Architecture Guide](docs/ROLE_BASED_ARCHITECTURE.md).
 
 ## Production Examples
 
@@ -695,6 +746,8 @@ make lint             # Lint code
 
 ### Architecture & Design (New in v0.4.0)
 
+- [Role-Based Architecture Guide](docs/ROLE_BASED_ARCHITECTURE.md) - Role types, constraints, and agent instantiation
+- [角色类型系统指南（中文）](docs/ROLE_BASED_ARCHITECTURE_CN.md)
 - [Architecture Selection Guide](docs/guides/architecture_selection/GUIDE.md) - Decision flowchart and comparison
 - [架构选择指南（中文）](docs/guides/architecture_selection/GUIDE_CN.md)
 

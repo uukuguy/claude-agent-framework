@@ -2,6 +2,7 @@
 Base architecture abstraction.
 
 Provides abstract base class that all architecture implementations must inherit.
+Supports role-based agent configuration for flexible business customization.
 """
 
 from __future__ import annotations
@@ -15,6 +16,12 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 if TYPE_CHECKING:
     from claude_agent_framework.plugins.base import BasePlugin
     from claude_agent_framework.utils import SubagentTracker, TranscriptWriter
+
+from claude_agent_framework.core.roles import (
+    AgentInstanceConfig,
+    RoleDefinition,
+    RoleRegistry,
+)
 
 
 @dataclass
@@ -93,16 +100,21 @@ class ArchitecturePlugin(Protocol):
 
 class BaseArchitecture(ABC):
     """
-    Abstract base class for all architecture implementations.
+    Abstract base class for role-based architecture implementations.
 
     All architectures must inherit from this class and implement:
     - execute(): Main execution logic returning async message stream
-    - get_agents(): Returns agent definitions for the architecture
+    - get_role_definitions(): Returns role definitions for the architecture
 
-    Optional overrides:
-    - get_hooks(): Custom hook configuration
-    - setup(): Pre-execution initialization
-    - teardown(): Post-execution cleanup
+    The role-based system separates:
+    - Role definitions: What roles the architecture supports (abstract)
+    - Agent instances: How business configs fill those roles (concrete)
+
+    Workflow:
+    1. Architecture defines roles via get_role_definitions()
+    2. Business calls configure_agents() with AgentInstanceConfig list
+    3. Architecture validates against role constraints
+    4. get_agents() returns configured agent definitions
     """
 
     # Class attributes - override in subclasses
@@ -114,7 +126,9 @@ class BaseArchitecture(ABC):
         model_config: AgentModelConfig | None = None,
         prompts_dir: Path | None = None,
         files_dir: Path | None = None,
-        # New: Business template and prompt customization
+        # Role-based configuration
+        agent_instances: list[AgentInstanceConfig] | None = None,
+        # Prompt customization (business_templates and skills support)
         business_template: str | None = None,
         custom_prompts_dir: Path | str | None = None,
         prompt_overrides: dict[str, str] | None = None,
@@ -127,8 +141,9 @@ class BaseArchitecture(ABC):
             model_config: Model configuration for agents
             prompts_dir: Directory containing prompt files
             files_dir: Working directory for file operations
-            business_template: Name of business template to use (optional)
-            custom_prompts_dir: Application-level custom prompts directory (optional)
+            agent_instances: List of agent instance configurations (role-based)
+            business_template: Name of business template for prompts
+            custom_prompts_dir: Application-level custom prompts directory
             prompt_overrides: Dict of agent_name -> override prompt content
             template_vars: Dict of template variables for ${var} substitution
         """
@@ -138,21 +153,170 @@ class BaseArchitecture(ABC):
         self._plugins: list[ArchitecturePlugin] = []  # Legacy plugin support
         self._result: Any = None
 
-        # Business template and prompt customization
+        # Prompt customization (business_templates support)
         self._business_template = business_template
         self._custom_prompts_dir = Path(custom_prompts_dir) if custom_prompts_dir else None
         self._prompt_overrides = prompt_overrides or {}
         self._template_vars = template_vars or {}
+
+        # Role-based agent management
+        self._role_registry = RoleRegistry()
+        self._agent_instances: list[AgentInstanceConfig] = []
+        self._configured_agents: dict[str, AgentDefinitionConfig] = {}
+
+        # Register roles from subclass implementation
+        self._register_roles()
+
+        # Configure agents if provided
+        if agent_instances:
+            self.configure_agents(agent_instances)
 
         # New plugin system
         from claude_agent_framework.plugins.base import PluginManager
 
         self._plugin_manager = PluginManager()
 
-        # Dynamic agent registry
+        # Dynamic agent registry (for runtime additions)
         from claude_agent_framework.dynamic.agent_registry import DynamicAgentRegistry
 
         self._dynamic_agents = DynamicAgentRegistry()
+
+    def _register_roles(self) -> None:
+        """Register role definitions from subclass. Called during __init__."""
+        for role_id, role_def in self.get_role_definitions().items():
+            self._role_registry.register(role_id, role_def)
+
+    @abstractmethod
+    def get_role_definitions(self) -> dict[str, RoleDefinition]:
+        """
+        Get role definitions for this architecture.
+
+        Each role defines:
+        - role_type: Semantic type (worker, processor, etc.)
+        - cardinality: How many agents can fill this role
+        - required_tools: Tools any agent in this role must have
+        - default_model: Suggested model tier
+
+        Returns:
+            Dict mapping role_id to RoleDefinition
+
+        Example:
+            >>> def get_role_definitions(self):
+            ...     return {
+            ...         "worker": RoleDefinition(
+            ...             role_type=RoleType.WORKER,
+            ...             cardinality=RoleCardinality.ONE_OR_MORE,
+            ...             required_tools=["WebSearch"],
+            ...         ),
+            ...     }
+        """
+        pass
+
+    def configure_agents(self, agents: list[AgentInstanceConfig]) -> None:
+        """
+        Configure agents from business configuration.
+
+        Validates agent instances against role definitions and
+        builds the internal agent configuration.
+
+        Args:
+            agents: List of agent instance configurations
+
+        Raises:
+            ValueError: If configuration doesn't match role requirements
+
+        Example:
+            >>> architecture.configure_agents([
+            ...     AgentInstanceConfig(name="market-researcher", role="worker", ...),
+            ...     AgentInstanceConfig(name="tech-researcher", role="worker", ...),
+            ... ])
+        """
+        # Validate against role definitions
+        errors = self._role_registry.validate_agents(agents)
+        if errors:
+            error_msg = "\n".join(f"  - {e}" for e in errors)
+            raise ValueError(f"Agent configuration errors:\n{error_msg}")
+
+        self._agent_instances = agents
+        self._build_configured_agents()
+
+    def _build_configured_agents(self) -> None:
+        """Build AgentDefinitionConfig from validated agent instances."""
+        self._configured_agents = {}
+
+        for instance in self._agent_instances:
+            role_def = self._role_registry.get(instance.role)
+            if role_def:
+                agent_def = instance.to_agent_definition(role_def, self.prompts_dir)
+                self._configured_agents[instance.name] = agent_def
+
+    def get_agents(self) -> dict[str, AgentDefinitionConfig]:
+        """
+        Get configured agent definitions.
+
+        Returns:
+            Dict mapping agent name to AgentDefinitionConfig
+
+        Raises:
+            ValueError: If agents not configured via configure_agents()
+        """
+        if not self._configured_agents:
+            raise ValueError(
+                "Agents not configured. Call configure_agents() with agent instances first."
+            )
+        return self._configured_agents
+
+    # Role query methods
+    def list_roles(self) -> list[str]:
+        """
+        List all role IDs defined by this architecture.
+
+        Returns:
+            List of role identifiers
+        """
+        return self._role_registry.list_roles()
+
+    def get_role(self, role_id: str) -> RoleDefinition | None:
+        """
+        Get role definition by ID.
+
+        Args:
+            role_id: The role identifier
+
+        Returns:
+            RoleDefinition if found, None otherwise
+        """
+        return self._role_registry.get(role_id)
+
+    def get_agents_by_role(self, role_id: str) -> list[str]:
+        """
+        Get agent names that fill a specific role.
+
+        Args:
+            role_id: The role identifier
+
+        Returns:
+            List of agent names filling this role
+        """
+        return [inst.name for inst in self._agent_instances if inst.role == role_id]
+
+    def get_required_roles(self) -> list[str]:
+        """
+        Get all roles that require at least one agent.
+
+        Returns:
+            List of required role identifiers
+        """
+        return self._role_registry.get_required_roles()
+
+    def get_optional_roles(self) -> list[str]:
+        """
+        Get all optional roles.
+
+        Returns:
+            List of optional role identifiers
+        """
+        return self._role_registry.get_optional_roles()
 
     @property
     def prompts_dir(self) -> Path:
@@ -174,42 +338,19 @@ class BaseArchitecture(ABC):
         return FILES_DIR / self.name
 
     @property
-    def business_template(self) -> str | None:
-        """Get the business template name."""
-        return self._business_template
-
-    @property
-    def custom_prompts_dir(self) -> Path | None:
-        """Get the custom prompts directory."""
-        return self._custom_prompts_dir
-
-    @property
-    def prompt_overrides(self) -> dict[str, str]:
-        """Get prompt overrides dict."""
-        return self._prompt_overrides
-
-    @property
     def template_vars(self) -> dict[str, Any]:
         """Get template variables dict."""
         return self._template_vars
 
     @property
-    def prompt_composer(self):
-        """
-        Get a PromptComposer configured for this architecture.
+    def role_registry(self) -> RoleRegistry:
+        """Get the role registry."""
+        return self._role_registry
 
-        Returns:
-            PromptComposer instance for composing layered prompts
-        """
-        from claude_agent_framework.core.prompt import PromptComposer
-
-        return PromptComposer(
-            architecture_prompts_dir=self.prompts_dir,
-            business_template=self._business_template,
-            custom_prompts_dir=self._custom_prompts_dir,
-            prompt_overrides=self._prompt_overrides,
-            template_vars=self._template_vars,
-        )
+    @property
+    def agent_instances(self) -> list[AgentInstanceConfig]:
+        """Get the configured agent instances."""
+        return self._agent_instances
 
     @abstractmethod
     async def execute(
@@ -231,33 +372,22 @@ class BaseArchitecture(ABC):
         """
         pass
 
-    @abstractmethod
-    def get_agents(self) -> dict[str, AgentDefinitionConfig]:
-        """
-        Get agent definitions for this architecture.
-
-        Returns:
-            Dict mapping agent name to AgentDefinitionConfig
-        """
-        pass
-
     def get_lead_prompt(self) -> str:
         """
         Get the lead agent's system prompt.
 
-        Uses PromptComposer to combine architecture core prompt with
-        business prompt if configured.
-
         Override in subclasses to customize.
         """
-        # Use PromptComposer if business template or customization is configured
-        if self._business_template or self._custom_prompts_dir or self._prompt_overrides:
-            return self.prompt_composer.compose("lead_agent")
-
-        # Fallback to legacy behavior for backward compatibility
         prompt_path = self.prompts_dir / "lead_agent.txt"
         if prompt_path.exists():
-            return prompt_path.read_text(encoding="utf-8").strip()
+            prompt = prompt_path.read_text(encoding="utf-8").strip()
+            # Apply template variable substitution
+            if self._template_vars:
+                from string import Template
+
+                template = Template(prompt)
+                prompt = template.safe_substitute(self._template_vars)
+            return prompt
         return self._default_lead_prompt()
 
     def _default_lead_prompt(self) -> str:
@@ -356,7 +486,7 @@ class BaseArchitecture(ABC):
         Add an agent dynamically at runtime.
 
         This allows adding new agents without modifying the architecture class.
-        Dynamic agents are merged with static agents from get_agents().
+        Dynamic agents are merged with configured agents from configure_agents().
 
         Args:
             name: Unique agent name (used as subagent_type)
@@ -368,16 +498,6 @@ class BaseArchitecture(ABC):
         Raises:
             AgentConfigError: If configuration is invalid
             ValueError: If agent name already exists
-
-        Example:
-            >>> session = init("research")
-            >>> session.architecture.add_agent(
-            ...     name="social_analyst",
-            ...     description="Analyze social media trends",
-            ...     tools=["WebSearch", "Write"],
-            ...     prompt="You analyze social media trends...",
-            ...     model="haiku"
-            ... )
         """
         self._dynamic_agents.register(
             name=name,
@@ -396,9 +516,6 @@ class BaseArchitecture(ABC):
 
         Raises:
             KeyError: If agent not found in dynamic registry
-
-        Example:
-            >>> session.architecture.remove_agent("social_analyst")
         """
         self._dynamic_agents.unregister(name)
 
@@ -408,10 +525,6 @@ class BaseArchitecture(ABC):
 
         Returns:
             List of dynamic agent names
-
-        Example:
-            >>> session.architecture.list_dynamic_agents()
-            ['social_analyst', 'custom_agent']
         """
         return self._dynamic_agents.list_agents()
 
@@ -442,10 +555,16 @@ class BaseArchitecture(ABC):
         """
         Convert agent configs to Claude SDK AgentDefinition format.
 
-        Uses PromptComposer to combine architecture core prompts with
-        business prompts if configured.
+        Prompt composition follows this priority (highest to lowest):
+        1. AgentInstanceConfig.prompt/prompt_file - explicit agent instance prompt
+        2. prompt_overrides[agent_name] - code parameter override
+        3. business_template/<agent_name>.txt - business template prompt
+        4. RoleDefinition.prompt_file - role base prompt (fallback)
 
-        Merges static agents from get_agents() with dynamically registered agents.
+        If both role base prompt and business prompt exist, they are combined.
+        Template variable substitution is applied to the final prompt.
+
+        Merges configured agents with dynamically registered agents.
         Dynamic agents take precedence if names conflict.
 
         Returns:
@@ -453,20 +572,39 @@ class BaseArchitecture(ABC):
         """
         from claude_agent_sdk import AgentDefinition
 
-        # Get composer for layered prompt composition
-        composer = self.prompt_composer
+        from claude_agent_framework.core.prompt import PromptComposer
 
-        # Start with static agents
+        # Get configured agents
         agents = self.get_agents()
         result = {}
 
+        # Create PromptComposer for business prompt resolution
+        composer = PromptComposer(
+            architecture_prompts_dir=self.prompts_dir,
+            business_template=self._business_template,
+            custom_prompts_dir=self._custom_prompts_dir,
+            prompt_overrides=self._prompt_overrides,
+            template_vars=self._template_vars,
+        )
+
         for name, config in agents.items():
-            # Use PromptComposer if business template or customization is configured
-            if self._business_template or self._custom_prompts_dir or self._prompt_overrides:
-                prompt = composer.compose(name)
+            # Priority 1: Explicit prompt from AgentInstanceConfig
+            instance_prompt = config.load_prompt(self.prompts_dir)
+
+            if instance_prompt:
+                # Use agent instance prompt directly (highest priority)
+                prompt = instance_prompt
             else:
-                # Fallback to legacy behavior for backward compatibility
-                prompt = config.load_prompt(self.prompts_dir)
+                # Use PromptComposer for layered prompt composition
+                # This combines role base prompt + business template prompt
+                prompt = composer.compose(name)
+
+            # Ensure template vars are applied (if not already by composer)
+            if self._template_vars and prompt and not self._business_template:
+                from string import Template
+
+                template = Template(prompt)
+                prompt = template.safe_substitute(self._template_vars)
 
             result[name] = AgentDefinition(
                 description=config.description,
@@ -475,7 +613,7 @@ class BaseArchitecture(ABC):
                 model=self.model_config.get_model(name),
             )
 
-        # Merge dynamic agents (they override static ones with same name)
+        # Merge dynamic agents (they override configured ones with same name)
         dynamic_agents = self._dynamic_agents.get_all()
         result.update(dynamic_agents)
 

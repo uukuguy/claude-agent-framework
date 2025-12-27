@@ -10,6 +10,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from claude_agent_framework.core.base import BaseArchitecture
+from claude_agent_framework.core.roles import RoleDefinition
+from claude_agent_framework.core.types import RoleCardinality, RoleType
 from claude_agent_framework.dynamic.validator import validate_agent_config
 
 if TYPE_CHECKING:
@@ -115,6 +117,27 @@ def create_dynamic_architecture(
             self._lead_tools = lead_tools
             self._lead_model = lead_model
             self._agent_configs = agents
+
+        def get_role_definitions(self) -> dict[str, RoleDefinition]:
+            """
+            Get role definitions for dynamic architecture.
+
+            Dynamic architectures use a single "agent" role that accepts
+            any number of agents with any tools.
+
+            Returns:
+                Dict with a single "agent" role that allows all agent types
+            """
+            return {
+                "agent": RoleDefinition(
+                    role_type=RoleType.SPECIALIST,
+                    description="Dynamic agent role - accepts any configuration",
+                    required_tools=[],
+                    optional_tools=[],
+                    cardinality=RoleCardinality.ZERO_OR_MORE,
+                    default_model="haiku",
+                ),
+            }
 
         def get_agents(self) -> dict[str, AgentDefinition]:
             """

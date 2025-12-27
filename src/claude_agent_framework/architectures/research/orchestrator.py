@@ -6,6 +6,11 @@ Implements master-worker coordination pattern:
 2. Multiple researcher agents gather information in parallel
 3. Data analyst processes and visualizes findings
 4. Report writer generates final output
+
+Role-based architecture:
+- worker: Parallel data gatherers (1 or more)
+- processor: Data processor/analyzer (0 or 1)
+- synthesizer: Report generator (exactly 1)
 """
 
 from __future__ import annotations
@@ -18,11 +23,12 @@ from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient, HookMatcher
 
 from claude_agent_framework.architectures.research.config import ResearchConfig
 from claude_agent_framework.core.base import (
-    AgentDefinitionConfig,
     AgentModelConfig,
     BaseArchitecture,
 )
 from claude_agent_framework.core.registry import register_architecture
+from claude_agent_framework.core.roles import AgentInstanceConfig, RoleDefinition
+from claude_agent_framework.core.types import RoleCardinality, RoleType
 
 if TYPE_CHECKING:
     from claude_agent_framework.utils import SubagentTracker, TranscriptWriter
@@ -35,12 +41,23 @@ class ResearchArchitecture(BaseArchitecture):
 
     Pattern: Master-Worker Coordination
     - Lead agent: Task decomposition and orchestration
-    - Researchers: Parallel information gathering
-    - Data analyst: Processing and visualization
-    - Report writer: Final report generation
+    - Workers: Parallel information gathering (1+ agents)
+    - Processor: Data analysis and visualization (0-1 agent)
+    - Synthesizer: Final report generation (1 agent)
+
+    Role Definitions:
+        worker: Gather research data via web search (required, 1+)
+        processor: Analyze data and generate visualizations (optional, 0-1)
+        synthesizer: Generate final reports (required, exactly 1)
 
     Usage:
-        arch = ResearchArchitecture()
+        agents = [
+            AgentInstanceConfig(name="market-researcher", role="worker", ...),
+            AgentInstanceConfig(name="tech-researcher", role="worker", ...),
+            AgentInstanceConfig(name="analyst", role="processor", ...),
+            AgentInstanceConfig(name="writer", role="synthesizer", ...),
+        ]
+        arch = ResearchArchitecture(agent_instances=agents)
         async for msg in arch.execute("Research AI market trends"):
             print(msg)
     """
@@ -54,7 +71,9 @@ class ResearchArchitecture(BaseArchitecture):
         model_config: AgentModelConfig | None = None,
         prompts_dir: Path | None = None,
         files_dir: Path | None = None,
-        # Business template and prompt customization
+        # Role-based configuration
+        agent_instances: list[AgentInstanceConfig] | None = None,
+        # Prompt customization (business_templates and skills support)
         business_template: str | None = None,
         custom_prompts_dir: Path | str | None = None,
         prompt_overrides: dict[str, str] | None = None,
@@ -68,8 +87,9 @@ class ResearchArchitecture(BaseArchitecture):
             model_config: Model configuration (overridden by config if provided)
             prompts_dir: Custom prompts directory
             files_dir: Custom files directory
-            business_template: Name of business template to use (optional)
-            custom_prompts_dir: Application-level custom prompts directory (optional)
+            agent_instances: List of agent instance configurations (role-based)
+            business_template: Name of business template for prompts
+            custom_prompts_dir: Application-level custom prompts directory
             prompt_overrides: Dict of agent_name -> override prompt content
             template_vars: Dict of template variables for ${var} substitution
         """
@@ -79,39 +99,54 @@ class ResearchArchitecture(BaseArchitecture):
         if model_config is None:
             model_config = AgentModelConfig(
                 default=self.research_config.lead_model,
-                overrides=self.research_config.get_model_overrides(),
+                overrides={},  # Overrides will come from agent instances
             )
 
         super().__init__(
             model_config=model_config,
             prompts_dir=prompts_dir,
             files_dir=files_dir,
+            agent_instances=agent_instances,
             business_template=business_template,
             custom_prompts_dir=custom_prompts_dir,
             prompt_overrides=prompt_overrides,
             template_vars=template_vars,
         )
 
-    def get_agents(self) -> dict[str, AgentDefinitionConfig]:
-        """Get research agent definitions."""
+    def get_role_definitions(self) -> dict[str, RoleDefinition]:
+        """
+        Get role definitions for research architecture.
+
+        Returns:
+            Dict mapping role_id to RoleDefinition
+        """
         return {
-            "researcher": AgentDefinitionConfig(
-                name="researcher",
+            "worker": RoleDefinition(
+                role_type=RoleType.WORKER,
                 description="Gather research data via web search, save to files/research_notes/",
-                tools=["WebSearch", "Write", "Skill"],
-                prompt_file="researcher.txt",
+                required_tools=["WebSearch"],
+                optional_tools=["Write", "Skill", "Read"],
+                cardinality=RoleCardinality.ONE_OR_MORE,
+                default_model=self.research_config.researcher_model,
+                prompt_file="worker.txt",
             ),
-            "data-analyst": AgentDefinitionConfig(
-                name="data-analyst",
+            "processor": RoleDefinition(
+                role_type=RoleType.PROCESSOR,
                 description="Analyze research data and generate visualizations, save to files/charts/",
-                tools=["Glob", "Read", "Bash", "Write", "Skill"],
-                prompt_file="data_analyst.txt",
+                required_tools=["Read", "Write"],
+                optional_tools=["Glob", "Bash", "Skill"],
+                cardinality=RoleCardinality.ZERO_OR_ONE,
+                default_model=self.research_config.analyst_model,
+                prompt_file="processor.txt",
             ),
-            "report-writer": AgentDefinitionConfig(
-                name="report-writer",
-                description="Generate final PDF reports, save to files/reports/",
-                tools=["Skill", "Write", "Glob", "Read", "Bash"],
-                prompt_file="report_writer.txt",
+            "synthesizer": RoleDefinition(
+                role_type=RoleType.SYNTHESIZER,
+                description="Generate final reports, save to files/reports/",
+                required_tools=["Write"],
+                optional_tools=["Skill", "Read", "Glob", "Bash"],
+                cardinality=RoleCardinality.EXACTLY_ONE,
+                default_model=self.research_config.writer_model,
+                prompt_file="synthesizer.txt",
             ),
         }
 
@@ -125,16 +160,21 @@ class ResearchArchitecture(BaseArchitecture):
         )
         if self.research_config.research_depth == "shallow":
             depth_context += (
-                "\n- Quick overview, 2-3 key data points\n- Dispatch 2 researchers in parallel"
+                "\n- Quick overview, 2-3 key data points\n- Dispatch 2 workers in parallel"
             )
         elif self.research_config.research_depth == "deep":
             depth_context += (
-                "\n- Deep analysis, 15+ data points\n- Dispatch 4 researchers in parallel"
+                "\n- Deep analysis, 15+ data points\n- Dispatch 4 workers in parallel"
             )
         else:
             depth_context += (
-                "\n- Standard depth, 5-10 data points\n- Dispatch 3 researchers in parallel"
+                "\n- Standard depth, 5-10 data points\n- Dispatch 3 workers in parallel"
             )
+
+        # Add configured agent info
+        workers = self.get_agents_by_role("worker")
+        if workers:
+            depth_context += f"\n\nAvailable workers: {', '.join(workers)}"
 
         return base_prompt + depth_context
 

@@ -12,8 +12,9 @@
 1. [初始化API](#初始化api)
 2. [AgentSession](#agentsession)
 3. [BaseArchitecture](#basearchitecture)
-4. [配置类](#配置类)
-5. [工具函数](#工具函数)
+4. [角色类型系统](#角色类型系统)
+5. [配置类](#配置类)
+6. [工具函数](#工具函数)
 
 ---
 
@@ -604,6 +605,234 @@ def files_dir(self) -> Path
 ```
 
 **返回值**: 文件目录的 `Path`(默认: `files/`)
+
+---
+
+## 角色类型系统
+
+角色类型系统提供了角色定义（抽象）和智能体实例（具体）之间的清晰分离。
+
+### `RoleType`
+
+定义语义角色类型的枚举。
+
+```python
+from claude_agent_framework.core.types import RoleType
+
+class RoleType(str, Enum):
+    COORDINATOR = "coordinator"   # 任务编排者
+    WORKER = "worker"             # 数据收集者
+    PROCESSOR = "processor"       # 数据处理者
+    SYNTHESIZER = "synthesizer"   # 结果综合者
+    CRITIC = "critic"             # 质量评估者
+    JUDGE = "judge"               # 决策制定者
+    SPECIALIST = "specialist"     # 领域专家
+    ADVOCATE = "advocate"         # 立场倡导者
+    MAPPER = "mapper"             # 并行映射者
+    REDUCER = "reducer"           # 结果归约者
+    EXECUTOR = "executor"         # 任务执行者
+    REFLECTOR = "reflector"       # 自我反思者
+```
+
+---
+
+### `RoleCardinality`
+
+定义角色数量约束的枚举。
+
+```python
+from claude_agent_framework.core.types import RoleCardinality
+
+class RoleCardinality(str, Enum):
+    EXACTLY_ONE = "exactly_one"   # 必须恰好 1 个
+    ONE_OR_MORE = "one_or_more"   # 至少 1 个 (1-N)
+    ZERO_OR_MORE = "zero_or_more" # 任意数量 (0-N)
+    ZERO_OR_ONE = "zero_or_one"   # 可选 (0-1)
+```
+
+---
+
+### `RoleDefinition`
+
+架构级角色约束定义。
+
+```python
+from claude_agent_framework.core.roles import RoleDefinition
+
+@dataclass
+class RoleDefinition:
+    role_type: RoleType
+    description: str = ""
+    required_tools: list[str] = field(default_factory=list)
+    optional_tools: list[str] = field(default_factory=list)
+    cardinality: RoleCardinality = RoleCardinality.EXACTLY_ONE
+    default_model: str = "haiku"
+    prompt_file: str = ""
+```
+
+**属性**:
+
+| 属性 | 类型 | 默认值 | 描述 |
+|------|------|--------|------|
+| `role_type` | `RoleType` | 必需 | 语义角色类型 |
+| `description` | `str` | `""` | 角色描述 |
+| `required_tools` | `list[str]` | `[]` | 角色必须拥有的工具 |
+| `optional_tools` | `list[str]` | `[]` | 允许的附加工具 |
+| `cardinality` | `RoleCardinality` | `EXACTLY_ONE` | 数量约束 |
+| `default_model` | `str` | `"haiku"` | 此角色的默认模型 |
+| `prompt_file` | `str` | `""` | 基础提示词文件路径 |
+
+---
+
+### `AgentInstanceConfig`
+
+业务级具体智能体配置。
+
+```python
+from claude_agent_framework.core.roles import AgentInstanceConfig
+
+@dataclass
+class AgentInstanceConfig:
+    name: str
+    role: str
+    description: str = ""
+    tools: list[str] = field(default_factory=list)
+    prompt: str = ""
+    prompt_file: str = ""
+    model: str = ""
+    metadata: dict[str, Any] = field(default_factory=dict)
+```
+
+**属性**:
+
+| 属性 | 类型 | 默认值 | 描述 |
+|------|------|--------|------|
+| `name` | `str` | 必需 | 唯一的智能体名称 |
+| `role` | `str` | 必需 | 角色 ID（必须匹配架构角色） |
+| `description` | `str` | `""` | 智能体描述 |
+| `tools` | `list[str]` | `[]` | 此智能体的附加工具 |
+| `prompt` | `str` | `""` | 直接提示词内容（最高优先级） |
+| `prompt_file` | `str` | `""` | 提示词文件路径 |
+| `model` | `str` | `""` | 模型覆盖（为空时使用角色默认值） |
+| `metadata` | `dict[str, Any]` | `{}` | 自定义元数据 |
+
+**示例**:
+
+```python
+from claude_agent_framework.core.roles import AgentInstanceConfig
+
+agent = AgentInstanceConfig(
+    name="market-researcher",
+    role="worker",
+    description="市场数据收集专员",
+    prompt_file="prompts/market_researcher.txt",
+    model="sonnet",
+)
+```
+
+---
+
+### `RoleRegistry`
+
+验证智能体配置是否满足角色约束。
+
+```python
+from claude_agent_framework.core.roles import RoleRegistry
+
+class RoleRegistry:
+    def register(self, role_id: str, role_def: RoleDefinition) -> None:
+        """注册角色定义。"""
+
+    def get(self, role_id: str) -> RoleDefinition | None:
+        """根据 ID 获取角色定义。"""
+
+    def validate_agents(
+        self, agents: list[AgentInstanceConfig]
+    ) -> list[str]:
+        """验证智能体实例是否满足角色约束。
+        返回错误消息列表（有效时为空）。"""
+```
+
+**示例**:
+
+```python
+from claude_agent_framework.core.roles import RoleRegistry, RoleDefinition, AgentInstanceConfig
+from claude_agent_framework.core.types import RoleType, RoleCardinality
+
+registry = RoleRegistry()
+
+# 注册角色定义
+registry.register("worker", RoleDefinition(
+    role_type=RoleType.WORKER,
+    cardinality=RoleCardinality.ONE_OR_MORE,
+    required_tools=["WebSearch"],
+))
+registry.register("synthesizer", RoleDefinition(
+    role_type=RoleType.SYNTHESIZER,
+    cardinality=RoleCardinality.EXACTLY_ONE,
+    required_tools=["Write"],
+))
+
+# 验证智能体实例
+agents = [
+    AgentInstanceConfig(name="researcher-1", role="worker"),
+    AgentInstanceConfig(name="researcher-2", role="worker"),
+    AgentInstanceConfig(name="writer", role="synthesizer"),
+]
+
+errors = registry.validate_agents(agents)
+if errors:
+    raise ValueError(f"配置错误: {errors}")
+```
+
+---
+
+### 使用角色配置的 `create_session()`
+
+`create_session()` 函数支持基于角色的智能体配置。
+
+```python
+def create_session(
+    architecture: str = "research",
+    *,
+    model: str = "haiku",
+    agent_instances: list[AgentInstanceConfig] | None = None,
+    business_template: str | None = None,
+    custom_prompts_dir: Path | str | None = None,
+    prompt_overrides: dict[str, str] | None = None,
+    template_vars: dict[str, Any] | None = None,
+    # ... 其他参数
+) -> AgentSession
+```
+
+**新参数**:
+
+| 参数 | 类型 | 描述 |
+|------|------|------|
+| `agent_instances` | `list[AgentInstanceConfig] \| None` | 智能体实例配置列表 |
+
+**示例**:
+
+```python
+from claude_agent_framework import create_session
+from claude_agent_framework.core.roles import AgentInstanceConfig
+
+agents = [
+    AgentInstanceConfig(name="market-researcher", role="worker"),
+    AgentInstanceConfig(name="tech-researcher", role="worker"),
+    AgentInstanceConfig(name="analyst", role="processor", model="sonnet"),
+    AgentInstanceConfig(name="writer", role="synthesizer"),
+]
+
+session = create_session(
+    "research",
+    agent_instances=agents,
+    business_template="competitive_intelligence",
+)
+
+async for msg in session.run("分析 AI 市场趋势"):
+    print(msg)
+```
 
 ---
 

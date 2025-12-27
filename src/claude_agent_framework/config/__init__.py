@@ -22,8 +22,10 @@ try:
     from claude_agent_framework.config.loader import ConfigLoader
     from claude_agent_framework.config.schema import (
         AgentConfigSchema,
+        AgentInstanceSchema,
         FrameworkConfigSchema,
         PermissionMode,
+        RoleBasedConfigSchema,
     )
     from claude_agent_framework.config.validator import ConfigValidator
     from claude_agent_framework.core.types import ModelType
@@ -34,6 +36,8 @@ except ImportError:
     ConfigLoader = None  # type: ignore
     ConfigValidator = None  # type: ignore
     AgentConfigSchema = None  # type: ignore
+    AgentInstanceSchema = None  # type: ignore
+    RoleBasedConfigSchema = None  # type: ignore
     FrameworkConfigSchema = None  # type: ignore
     ModelType = None  # type: ignore
     PermissionMode = None  # type: ignore
@@ -53,6 +57,8 @@ __all__ = [
     "ConfigLoader",
     "ConfigValidator",
     "AgentConfigSchema",
+    "AgentInstanceSchema",
+    "RoleBasedConfigSchema",
     "FrameworkConfigSchema",
     "ModelType",
     "PermissionMode",

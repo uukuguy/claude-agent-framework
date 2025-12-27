@@ -108,7 +108,8 @@ claude_agent_framework/
 │   ├── base.py          # BaseArchitecture abstract class
 │   ├── registry.py      # Architecture registration
 │   ├── session.py       # AgentSession lifecycle management
-│   └── types.py         # Centralized type definitions
+│   ├── roles.py         # Role-based architecture (RoleDefinition, AgentInstanceConfig)
+│   └── types.py         # Centralized type definitions (RoleType, RoleCardinality)
 ├── architectures/       # Built-in architecture implementations
 │   ├── research/        # Master-worker pattern
 │   ├── pipeline/        # Sequential stages
@@ -199,6 +200,76 @@ class NewArchitecture(BaseArchitecture):
 
 4. Add import to `architectures/__init__.py`
 5. Add tests in `tests/`
+
+## Role-Based Architecture
+
+The framework uses a Role-Based Architecture that separates role definitions from agent instances.
+
+### Core Types
+
+```python
+from claude_agent_framework.core.types import RoleType, RoleCardinality
+
+# Role types define semantic roles
+RoleType.WORKER      # Data gatherer
+RoleType.PROCESSOR   # Data processor
+RoleType.SYNTHESIZER # Result synthesizer
+# ... etc.
+
+# Cardinality defines quantity constraints
+RoleCardinality.EXACTLY_ONE   # Must have exactly 1
+RoleCardinality.ONE_OR_MORE   # At least 1 (1-N)
+RoleCardinality.ZERO_OR_MORE  # Any number (0-N)
+RoleCardinality.ZERO_OR_ONE   # Optional (0-1)
+```
+
+### Implementing Role Definitions
+
+When creating a new architecture, implement `get_role_definitions()`:
+
+```python
+from claude_agent_framework.core.roles import RoleDefinition
+from claude_agent_framework.core.types import RoleType, RoleCardinality
+
+@register_architecture("my_arch")
+class MyArchitecture(BaseArchitecture):
+    def get_role_definitions(self) -> dict[str, RoleDefinition]:
+        return {
+            "executor": RoleDefinition(
+                role_type=RoleType.EXECUTOR,
+                description="Execute tasks",
+                required_tools=["Bash", "Write"],
+                optional_tools=["Read", "Glob"],
+                cardinality=RoleCardinality.ONE_OR_MORE,
+                default_model="haiku",
+                prompt_file="executor.txt",
+            ),
+            "reviewer": RoleDefinition(
+                role_type=RoleType.CRITIC,
+                description="Review results",
+                required_tools=["Read"],
+                cardinality=RoleCardinality.EXACTLY_ONE,
+                default_model="sonnet",
+                prompt_file="reviewer.txt",
+            ),
+        }
+```
+
+### Using Role-Based Configuration
+
+```python
+from claude_agent_framework import create_session
+from claude_agent_framework.core.roles import AgentInstanceConfig
+
+agents = [
+    AgentInstanceConfig(name="task-runner", role="executor"),
+    AgentInstanceConfig(name="code-checker", role="reviewer", model="opus"),
+]
+
+session = create_session("my_arch", agent_instances=agents)
+```
+
+For complete documentation, see [docs/ROLE_BASED_ARCHITECTURE.md](docs/ROLE_BASED_ARCHITECTURE.md).
 
 ## Code Style
 
@@ -332,6 +403,8 @@ The framework includes **7 production-grade examples** (`examples/production/`) 
 
 - README.md / README_CN.md - User documentation (English/Chinese)
 - docs/BEST_PRACTICES.md / docs/BEST_PRACTICES_CN.md - Best practices guide (English/Chinese)
+- docs/ROLE_BASED_ARCHITECTURE.md / docs/ROLE_BASED_ARCHITECTURE_CN.md - Role-based architecture guide (English/Chinese)
+- docs/api/core.md / docs/api/core_cn.md - Core API reference (English/Chinese)
 - examples/production/README.md - Production examples overview
 - examples/production/*/README.md - Individual example documentation (all 7 examples complete):
   - 01_competitive_intelligence - Research architecture example

@@ -6,7 +6,13 @@ Supports 7 architecture patterns for research, development, and decision support
 
 Quick Start:
     >>> from claude_agent_framework import create_session
-    >>> session = create_session("research")
+    >>> from claude_agent_framework.core.roles import AgentInstanceConfig
+    >>>
+    >>> agents = [
+    ...     AgentInstanceConfig(name="researcher", role="worker"),
+    ...     AgentInstanceConfig(name="writer", role="synthesizer"),
+    ... ]
+    >>> session = create_session("research", agent_instances=agents)
     >>> async for msg in session.run("Analyze AI market trends"):
     ...     print(msg)
 
@@ -35,11 +41,17 @@ from claude_agent_framework.config import (
     validate_api_key,
 )
 from claude_agent_framework.core import (
+    AgentInstanceConfig,
     AgentSession,
     ArchitectureType,
     BaseArchitecture,
     ModelType,
     ModelTypeStr,
+    RoleCardinality,
+    RoleDefinition,
+    RoleRegistry,
+    RoleType,
+    RoleTypeStr,
     get_architecture,
     list_architectures,
     register_architecture,
@@ -59,7 +71,7 @@ from claude_agent_framework.utils import (
     setup_session,
 )
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 __all__ = [
     # Primary API (new simplified interface)
     "create_session",
@@ -69,6 +81,13 @@ __all__ = [
     "ArchitectureType",
     "ModelType",
     "ModelTypeStr",
+    # Role-based types (new)
+    "RoleType",
+    "RoleTypeStr",
+    "RoleCardinality",
+    "RoleDefinition",
+    "AgentInstanceConfig",
+    "RoleRegistry",
     # Core architecture
     "BaseArchitecture",
     "AgentSession",
