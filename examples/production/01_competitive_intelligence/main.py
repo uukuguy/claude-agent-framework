@@ -58,9 +58,8 @@ async def run_competitive_intelligence(config: dict) -> dict:
             f"Starting competitive intelligence analysis for {len(competitors)} competitors"
         )
 
-        # Determine prompt mode and configure session accordingly
-        prompt_mode = config.get("prompt_mode", "templates")
-        prompts_dir = Path(__file__).parent / "prompts" / prompt_mode
+        # Business prompts directory (contains business-specific context)
+        prompts_dir = Path(__file__).parent / "prompts"
 
         # Template variables for prompt customization
         template_vars = {
@@ -68,39 +67,23 @@ async def run_competitive_intelligence(config: dict) -> dict:
             "industry": config.get("industry", "Technology"),
         }
 
-        logger.info(f"Using prompt mode: {prompt_mode}")
-
         # Build agent instances based on competitors
         agent_instances = _build_agent_instances(config, models)
         logger.info(
             f"Created {len(agent_instances)} agent instances for {len(competitors)} competitors"
         )
 
-        if prompt_mode == "templates":
-            # Templates mode: local overrides + framework business_template fallback
-            session = create_session(
-                "research",
-                model=models.get("lead", "sonnet"),
-                agent_instances=agent_instances,
-                business_template=config.get("business_template", "competitive_intelligence"),
-                prompts_dir=prompts_dir if prompts_dir.exists() else None,
-                template_vars=template_vars,
-                verbose=False,
-            )
-        else:
-            # Skills mode: use local prompts only (no business_template fallback)
-            if not prompts_dir.exists():
-                raise ExecutionError(
-                    f"Skills mode requires prompts directory: {prompts_dir}"
-                )
-            session = create_session(
-                "research",
-                model=models.get("lead", "sonnet"),
-                agent_instances=agent_instances,
-                prompts_dir=prompts_dir,
-                template_vars=template_vars,
-                verbose=False,
-            )
+        # Create session with two-layer prompt composition:
+        # - Framework prompts: Generic role capabilities (from research architecture)
+        # - Business prompts: Specific context and Skills references (from prompts_dir)
+        session = create_session(
+            "research",
+            model=models.get("lead", "sonnet"),
+            agent_instances=agent_instances,
+            prompts_dir=prompts_dir,
+            template_vars=template_vars,
+            verbose=False,
+        )
 
         # Run analysis
         results = []
@@ -139,9 +122,9 @@ def _build_analysis_prompt(competitors: list[dict], dimensions: list[str]) -> st
     """
     Build analysis prompt for the research architecture.
 
-    Note: Role instructions and workflow guidance are provided by either:
-    - Templates mode: business template (competitive_intelligence) with optional local overrides
-    - Skills mode: local prompts that guide agents to use Skills for methodology
+    Role instructions and workflow guidance are provided by:
+    - Framework layer: Generic role capabilities (worker.txt, processor.txt, etc.)
+    - Business layer: Specific context and Skills references (prompts/*.txt)
 
     This function only generates the user task description.
 

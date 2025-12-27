@@ -3,14 +3,6 @@
 # Architecture to use
 architecture: research
 
-# Prompt mode configuration
-# - "templates": Use detailed business_templates with optional local overrides (prompts/templates/)
-# - "skills": Use simplified prompts that guide agents to invoke Skills (prompts/skills/)
-prompt_mode: skills
-
-# Business template configuration (used as fallback in templates mode)
-business_template: competitive_intelligence
-
 # Template variables for prompt customization
 company_name: "Our Company"
 industry: "Cloud Computing"

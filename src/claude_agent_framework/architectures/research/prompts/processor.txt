@@ -35,10 +35,10 @@ You are a Data Processor responsible for analyzing collected data and generating
 | Relationship | Scatter Plot | Correlations |
 
 ## Output Requirements
-- Save outputs to designated directory
 - Use clear, descriptive file names
 - Include methodology notes
 - Document any data transformations
+- Follow business-specified output location
 
 ## Quality Standards
 - Analysis must accurately reflect source data

@@ -20,10 +20,10 @@ You are a Research Worker responsible for gathering information through web sear
 4. **Trend Data**: Historical changes and future projections
 
 ## Output Requirements
-- Save files to the designated output directory
 - Use structured Markdown format
 - Include data sources with URLs
 - Annotate all data with source and year
+- Follow business-specified output location
 
 ## Quality Standards
 - Each output should contain specific, verifiable data points

@@ -55,11 +55,11 @@ class TestPromptComposerCompose:
     def test_compose_core_only(self, research_prompts_dir: Path) -> None:
         """Test composing with only core prompt (no business template)."""
         composer = PromptComposer(architecture_prompts_dir=research_prompts_dir)
-        prompt = composer.compose("researcher")
+        prompt = composer.compose("worker")
         assert prompt is not None
         assert len(prompt) > 0
-        # Should contain core prompt content
-        assert "Role Definition" in prompt or "Professional Researcher" in prompt
+        # Should contain core prompt content (worker.txt)
+        assert "Research Worker" in prompt or "web searches" in prompt.lower()
 
     def test_compose_with_business_template(self, research_prompts_dir: Path) -> None:
         """Test composing with business template."""
@@ -67,9 +67,10 @@ class TestPromptComposerCompose:
             architecture_prompts_dir=research_prompts_dir,
             business_template="competitive_intelligence",
         )
+        # Note: business_template still uses old agent names (researcher)
+        # This tests the backward compatibility of PromptComposer
         prompt = composer.compose("researcher")
-        # Should contain both core and business prompts
-        assert "Role Definition" in prompt or "Professional Researcher" in prompt
+        # Should contain business prompt content
         assert "Competitive Intelligence" in prompt or "competitor" in prompt.lower()
 
     def test_compose_with_template_vars(self, research_prompts_dir: Path) -> None:
@@ -94,9 +95,7 @@ class TestPromptComposerCompose:
         )
         # When override is provided, it should be used as business prompt
         prompt = composer.compose("researcher")
-        # Core prompt should still be present
-        assert "Role Definition" in prompt or "Professional Researcher" in prompt
-        # Business override should be appended
+        # Business override should be present (no core prompt for "researcher" in new structure)
         assert custom_prompt in prompt
 
     def test_compose_nonexistent_agent(self, research_prompts_dir: Path) -> None:
@@ -117,7 +116,8 @@ class TestPromptComposerLoadCore:
     def test_load_core_existing(self, research_prompts_dir: Path) -> None:
         """Test loading existing core prompt."""
         composer = PromptComposer(architecture_prompts_dir=research_prompts_dir)
-        prompt = composer._load_core("researcher")
+        # Use "worker" which exists in the new structure
+        prompt = composer._load_core("worker")
         assert prompt is not None
         assert len(prompt) > 0
 

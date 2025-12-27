@@ -131,15 +131,18 @@ class AgentInstanceConfig:
         self,
         role_def: RoleDefinition,
         prompts_dir: Path | None = None,
-    ) -> "AgentDefinitionConfig":
+    ) -> AgentDefinitionConfig:
         """
         Convert to AgentDefinitionConfig for SDK compatibility.
 
         Merges role defaults with instance-specific configuration.
+        Supports two-layer prompt composition:
+        - role_prompt_file: Framework role default prompt (from RoleDefinition)
+        - prompt_file: Business instance prompt (from AgentInstanceConfig)
 
         Args:
             role_def: The role definition this instance fills
-            prompts_dir: Base directory for prompt files
+            prompts_dir: Base directory for prompt files (unused, kept for compatibility)
 
         Returns:
             AgentDefinitionConfig ready for SDK use
@@ -158,15 +161,19 @@ class AgentInstanceConfig:
         # Determine description: instance or role default
         description = self.description if self.description else role_def.description
 
-        # Determine prompt file: instance or role default
-        prompt_file = self.prompt_file if self.prompt_file else role_def.prompt_file
+        # Two-layer prompt composition:
+        # - role_prompt_file: Always from RoleDefinition (framework layer)
+        # - prompt_file: From instance if specified (business layer)
+        role_prompt_file = role_def.prompt_file
+        instance_prompt_file = self.prompt_file  # May be empty
 
         return AgentDefinitionConfig(
             name=self.name,
             description=description,
             tools=merged_tools,
             prompt=self.prompt,
-            prompt_file=prompt_file,
+            prompt_file=instance_prompt_file,
+            role_prompt_file=role_prompt_file,
             model=model,
         )
 

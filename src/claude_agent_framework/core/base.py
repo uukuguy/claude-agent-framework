@@ -29,13 +29,20 @@ class AgentDefinitionConfig:
     """
     Configuration for a single agent within an architecture.
 
+    Supports two-layer prompt composition:
+    - Role prompt: Framework-level generic role capabilities (from role_prompt_file)
+    - Instance prompt: Business-level specific context (from prompt_file)
+
+    Final prompt = role_prompt + "\\n\\n# Business Context\\n\\n" + instance_prompt
+
     Attributes:
         name: Agent identifier (used as subagent_type)
         description: When to use this agent
         tools: List of allowed tools
-        prompt: Prompt content or file path
+        prompt: Inline prompt content (highest priority)
+        prompt_file: Business instance prompt file (relative to custom_prompts_dir)
+        role_prompt_file: Framework role prompt file (relative to arch_prompts_dir)
         model: Model to use (haiku/sonnet/opus)
-        prompt_file: Path to prompt file (relative to architecture prompts dir)
     """
 
     name: str
@@ -43,10 +50,15 @@ class AgentDefinitionConfig:
     tools: list[str] = field(default_factory=list)
     prompt: str = ""
     prompt_file: str = ""
+    role_prompt_file: str = ""
     model: str = "haiku"
 
     def load_prompt(self, prompts_dir: Path) -> str:
-        """Load prompt content from file if prompt_file is set."""
+        """Load prompt content from file if prompt_file is set.
+
+        Note: This method is for backward compatibility. For two-layer composition,
+        use load_merged_prompt() instead.
+        """
         if self.prompt:
             return self.prompt
         if self.prompt_file:
@@ -55,6 +67,52 @@ class AgentDefinitionConfig:
                 return prompt_path.read_text(encoding="utf-8").strip()
             raise FileNotFoundError(f"Prompt file not found: {prompt_path}")
         return ""
+
+    def load_merged_prompt(
+        self,
+        arch_prompts_dir: Path,
+        custom_prompts_dir: Path | None = None,
+    ) -> str:
+        """Load and merge role prompt with instance prompt.
+
+        Two-layer composition:
+        1. Role prompt: Generic role capabilities from framework (arch_prompts_dir)
+        2. Instance prompt: Business-specific context (custom_prompts_dir)
+
+        Args:
+            arch_prompts_dir: Framework architecture prompts directory
+            custom_prompts_dir: Business custom prompts directory (optional)
+
+        Returns:
+            Merged prompt string with clear section separation
+        """
+        # If inline prompt is set, use it directly (highest priority)
+        if self.prompt:
+            return self.prompt
+
+        # Load role prompt (framework layer)
+        role_prompt = ""
+        if self.role_prompt_file:
+            role_path = arch_prompts_dir / self.role_prompt_file
+            if role_path.exists():
+                role_prompt = role_path.read_text(encoding="utf-8").strip()
+
+        # Load instance prompt (business layer)
+        instance_prompt = ""
+        if self.prompt_file and custom_prompts_dir:
+            instance_path = custom_prompts_dir / self.prompt_file
+            if instance_path.exists():
+                instance_prompt = instance_path.read_text(encoding="utf-8").strip()
+
+        # Merge prompts with clear separation
+        if role_prompt and instance_prompt:
+            return f"{role_prompt}\n\n# Business Context\n\n{instance_prompt}"
+        elif role_prompt:
+            return role_prompt
+        elif instance_prompt:
+            return instance_prompt
+        else:
+            return ""
 
 
 @dataclass
@@ -555,21 +613,22 @@ class BaseArchitecture(ABC):
         """
         Convert agent configs to Claude SDK AgentDefinition format.
 
-        Prompt composition follows this priority (highest to lowest):
-        1. AgentInstanceConfig.prompt/prompt_file - explicit agent instance prompt
-        2. prompt_overrides[agent_name] - code parameter override
-        3. business_template/<agent_name>.txt - business template prompt
-        4. RoleDefinition.prompt_file - role base prompt (fallback)
+        Two-layer prompt composition:
+        1. Role prompt (framework layer): From RoleDefinition.prompt_file
+           - Generic role capabilities, workflow framework, quality standards
+        2. Instance prompt (business layer): From AgentInstanceConfig.prompt_file
+           - Business context, Skills references, specific outputs
 
-        If both role base prompt and business prompt exist, they are combined.
+        Final prompt = role_prompt + "\\n\\n# Business Context\\n\\n" + instance_prompt
+
+        Fallback to PromptComposer if no instance prompt_file is specified.
         Template variable substitution is applied to the final prompt.
-
-        Merges configured agents with dynamically registered agents.
-        Dynamic agents take precedence if names conflict.
 
         Returns:
             Dict suitable for ClaudeAgentOptions.agents parameter
         """
+        from string import Template
+
         from claude_agent_sdk import AgentDefinition
 
         from claude_agent_framework.core.prompt import PromptComposer
@@ -578,7 +637,7 @@ class BaseArchitecture(ABC):
         agents = self.get_agents()
         result = {}
 
-        # Create PromptComposer for business prompt resolution
+        # Create PromptComposer as fallback for agents without explicit prompt_file
         composer = PromptComposer(
             architecture_prompts_dir=self.prompts_dir,
             business_template=self._business_template,
@@ -588,23 +647,23 @@ class BaseArchitecture(ABC):
         )
 
         for name, config in agents.items():
-            # Priority 1: Explicit prompt from AgentInstanceConfig
-            instance_prompt = config.load_prompt(self.prompts_dir)
+            # Use two-layer prompt composition
+            # This merges role_prompt_file (framework) + prompt_file (business)
+            merged_prompt = config.load_merged_prompt(
+                arch_prompts_dir=self.prompts_dir,
+                custom_prompts_dir=self._custom_prompts_dir,
+            )
 
-            if instance_prompt:
-                # Use agent instance prompt directly (highest priority)
-                prompt = instance_prompt
+            if merged_prompt:
+                prompt = merged_prompt
             else:
-                # Use PromptComposer for layered prompt composition
-                # This combines role base prompt + business template prompt
+                # Fallback to PromptComposer for backward compatibility
+                # (handles business_template and prompt_overrides)
                 prompt = composer.compose(name)
 
-            # Ensure template vars are applied (if not already by composer)
-            if self._template_vars and prompt and not self._business_template:
-                from string import Template
-
-                template = Template(prompt)
-                prompt = template.safe_substitute(self._template_vars)
+            # Apply template variable substitution
+            if self._template_vars and prompt:
+                prompt = Template(prompt).safe_substitute(self._template_vars)
 
             result[name] = AgentDefinition(
                 description=config.description,

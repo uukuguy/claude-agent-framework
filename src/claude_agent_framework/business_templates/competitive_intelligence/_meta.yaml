@@ -1,4 +1,8 @@
 # Business Template: Competitive Intelligence
+# DEPRECATED: Use Agent Skills mode instead. See examples/production/01_competitive_intelligence/
+
+deprecated: true
+deprecated_message: "Use Agent Skills mode with two-layer prompt composition instead. See examples/production/01_competitive_intelligence/"
 
 name: competitive_intelligence
 description: Competitive intelligence analysis for market research
