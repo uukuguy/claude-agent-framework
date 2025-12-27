@@ -14,7 +14,7 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient, HookMatcher
+from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
 
 from claude_agent_framework.architectures.specialist_pool.config import (
     SpecialistPoolConfig,
@@ -146,23 +146,10 @@ class SpecialistPoolArchitecture(BaseArchitecture):
 
         return super().get_lead_prompt()
 
-    async def execute(
-        self,
-        prompt: str,
-        tracker: SubagentTracker | None = None,
-        transcript: TranscriptWriter | None = None,
-    ) -> AsyncIterator[Any]:
-        """Execute expert routing and dispatch."""
-        prompt = self._apply_before_execute(prompt)
-
-        # Pre-route for context (optional, routing done by lead agent)
+    def _customize_prompt(self, prompt: str) -> str:
+        """Add routing analysis to the prompt."""
         routing = self.router.route(prompt)
-
-        hooks = self._build_hooks(tracker)
-        lead_prompt = self.get_lead_prompt()
-
-        # Add routing context to prompt
-        enhanced_prompt = f"""
+        return f"""
 User Question: {prompt}
 
 Routing Analysis:
@@ -173,13 +160,27 @@ Routing Analysis:
 Please dispatch tasks to appropriate experts based on the above analysis.
 """
 
+    async def execute(
+        self,
+        prompt: str,
+        tracker: SubagentTracker | None = None,
+        transcript: TranscriptWriter | None = None,
+    ) -> AsyncIterator[Any]:
+        """Execute expert routing and dispatch."""
+        prompt = self._apply_before_execute(prompt)
+
+        # Apply prompt customization (adds routing analysis)
+        enhanced_prompt = self._customize_prompt(prompt)
+
+        hooks = self._build_hooks(tracker)
+        lead_prompt = self.get_lead_prompt()
         agents = self.to_sdk_agents()
 
         options = ClaudeAgentOptions(
             permission_mode="bypassPermissions",
-            setting_sources=["project"],
+            setting_sources=self._get_setting_sources(),
             system_prompt=lead_prompt,
-            allowed_tools=["Task"],
+            allowed_tools=self._get_allowed_tools(),
             agents=agents,
             hooks=hooks,
             model=self.model_config.default,
@@ -193,16 +194,6 @@ Please dispatch tasks to appropriate experts based on the above analysis.
 
                 if hasattr(msg, "content") and msg.content:
                     self._result = msg.content
-
-    def _build_hooks(self, tracker: SubagentTracker | None) -> dict[str, list]:
-        """Build hook configuration."""
-        hooks: dict[str, list] = {}
-
-        if tracker:
-            hooks["PreToolUse"] = [HookMatcher(matcher=None, hooks=[tracker.pre_tool_use_hook])]
-            hooks["PostToolUse"] = [HookMatcher(matcher=None, hooks=[tracker.post_tool_use_hook])]
-
-        return hooks
 
     def add_expert(self, expert_config) -> None:
         """Add a new expert to the pool."""

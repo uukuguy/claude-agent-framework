@@ -13,7 +13,7 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient, HookMatcher
+from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
 
 from claude_agent_framework.architectures.mapreduce.config import MapReduceConfig
 from claude_agent_framework.architectures.mapreduce.splitter import TaskSplitter
@@ -179,6 +179,14 @@ class MapReduceArchitecture(BaseArchitecture):
 
         return super().get_lead_prompt()
 
+    def _get_allowed_tools(self) -> list[str]:
+        """MapReduce lead needs Glob for file discovery."""
+        return ["Task", "Glob"]
+
+    def _customize_prompt(self, prompt: str) -> str:
+        """Wrap prompt as MapReduce task."""
+        return f"MapReduce Task: {prompt}"
+
     async def execute(
         self,
         prompt: str,
@@ -187,38 +195,29 @@ class MapReduceArchitecture(BaseArchitecture):
     ) -> AsyncIterator[Any]:
         """Execute mapreduce workflow."""
         prompt = self._apply_before_execute(prompt)
+        mr_prompt = self._customize_prompt(prompt)
         hooks = self._build_hooks(tracker)
         lead_prompt = self.get_lead_prompt()
         agents = self.to_sdk_agents()
 
         options = ClaudeAgentOptions(
             permission_mode="bypassPermissions",
-            setting_sources=["project"],
+            setting_sources=self._get_setting_sources(),
             system_prompt=lead_prompt,
-            allowed_tools=["Task", "Glob"],  # Lead needs Glob for file discovery
+            allowed_tools=self._get_allowed_tools(),
             agents=agents,
             hooks=hooks,
             model=self.model_config.default,
         )
 
         async with ClaudeSDKClient(options=options) as client:
-            await client.query(prompt=f"MapReduce Task: {prompt}")
+            await client.query(prompt=mr_prompt)
 
             async for msg in client.receive_response():
                 yield msg
 
                 if hasattr(msg, "content") and msg.content:
                     self._result = msg.content
-
-    def _build_hooks(self, tracker: SubagentTracker | None) -> dict[str, list]:
-        """Build hook configuration."""
-        hooks: dict[str, list] = {}
-
-        if tracker:
-            hooks["PreToolUse"] = [HookMatcher(matcher=None, hooks=[tracker.pre_tool_use_hook])]
-            hooks["PostToolUse"] = [HookMatcher(matcher=None, hooks=[tracker.post_tool_use_hook])]
-
-        return hooks
 
     def get_mapper_results(self) -> list[str]:
         """Get results from all mappers."""

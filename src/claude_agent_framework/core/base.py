@@ -460,6 +460,90 @@ class BaseArchitecture(ABC):
         """
         return {}
 
+    def _build_hooks(self, tracker: "SubagentTracker | None") -> dict[str, list]:
+        """
+        Build hook configuration for SDK client.
+
+        Combines tracker hooks with custom hooks from get_hooks().
+        This is a common implementation shared by all architectures.
+
+        Args:
+            tracker: Optional subagent tracker for tool call monitoring
+
+        Returns:
+            Dict of hook type to list of HookMatchers
+        """
+        from claude_agent_sdk import HookMatcher
+
+        hooks: dict[str, list] = {}
+
+        if tracker:
+            hooks["PreToolUse"] = [
+                HookMatcher(matcher=None, hooks=[tracker.pre_tool_use_hook])
+            ]
+            hooks["PostToolUse"] = [
+                HookMatcher(matcher=None, hooks=[tracker.post_tool_use_hook])
+            ]
+
+        # Merge with custom hooks from get_hooks()
+        custom_hooks = self.get_hooks()
+        for hook_type, matchers in custom_hooks.items():
+            if hook_type not in hooks:
+                hooks[hook_type] = []
+            hooks[hook_type].extend(matchers)
+
+        return hooks
+
+    def _customize_prompt(self, prompt: str) -> str:
+        """
+        Customize the user prompt before execution.
+
+        Override in subclasses to wrap or modify the prompt.
+        Default implementation returns prompt unchanged.
+
+        Args:
+            prompt: Original user prompt
+
+        Returns:
+            Modified prompt
+
+        Examples:
+            - Debate: wraps as "Debate Topic: {prompt}"
+            - Reflexion: wraps as "Task: {prompt}"
+            - Specialist-Pool: adds routing analysis
+        """
+        return prompt
+
+    def _get_allowed_tools(self) -> list[str]:
+        """
+        Get allowed tools for the lead agent.
+
+        Override in subclasses to customize.
+        Default returns ["Task"] for standard orchestration.
+
+        Returns:
+            List of allowed tool names
+
+        Examples:
+            - MapReduce: returns ["Task", "Glob"]
+        """
+        return ["Task"]
+
+    def _get_setting_sources(self) -> list[str]:
+        """
+        Get setting sources for SDK options.
+
+        Override in subclasses to customize.
+        Default returns ["project"].
+
+        Returns:
+            List of setting source names
+
+        Examples:
+            - Research: returns ["project", "user"]
+        """
+        return ["project"]
+
     async def setup(self) -> None:
         """
         Setup resources before execution.

@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient, HookMatcher
+from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
 
 from claude_agent_framework.architectures.critic_actor.config import CriticActorConfig
 from claude_agent_framework.core.base import (
@@ -179,15 +179,16 @@ class CriticActorArchitecture(BaseArchitecture):
     ) -> AsyncIterator[Any]:
         """Execute critic-actor iteration loop."""
         prompt = self._apply_before_execute(prompt)
+        prompt = self._customize_prompt(prompt)
         hooks = self._build_hooks(tracker)
         lead_prompt = self.get_lead_prompt()
         agents = self.to_sdk_agents()
 
         options = ClaudeAgentOptions(
             permission_mode="bypassPermissions",
-            setting_sources=["project"],
+            setting_sources=self._get_setting_sources(),
             system_prompt=lead_prompt,
-            allowed_tools=["Task"],
+            allowed_tools=self._get_allowed_tools(),
             agents=agents,
             hooks=hooks,
             model=self.model_config.default,
@@ -201,16 +202,6 @@ class CriticActorArchitecture(BaseArchitecture):
 
                 if hasattr(msg, "content") and msg.content:
                     self._result = msg.content
-
-    def _build_hooks(self, tracker: SubagentTracker | None) -> dict[str, list]:
-        """Build hook configuration."""
-        hooks: dict[str, list] = {}
-
-        if tracker:
-            hooks["PreToolUse"] = [HookMatcher(matcher=None, hooks=[tracker.pre_tool_use_hook])]
-            hooks["PostToolUse"] = [HookMatcher(matcher=None, hooks=[tracker.post_tool_use_hook])]
-
-        return hooks
 
     def get_iteration_history(self) -> list[IterationRecord]:
         """Get history of all iterations."""

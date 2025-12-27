@@ -19,7 +19,7 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient, HookMatcher
+from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
 
 from claude_agent_framework.architectures.research.config import ResearchConfig
 from claude_agent_framework.core.base import (
@@ -152,31 +152,11 @@ class ResearchArchitecture(BaseArchitecture):
 
     def get_lead_prompt(self) -> str:
         """Get lead agent prompt with research-specific context."""
-        base_prompt = super().get_lead_prompt()
-        return base_prompt
-        # # Add research depth context
-        # depth_context = (
-        #     f"\n\n# Research Depth\nCurrently set to {self.research_config.research_depth} mode."
-        # )
-        # if self.research_config.research_depth == "shallow":
-        #     depth_context += (
-        #         "\n- Quick overview, 2-3 key data points\n- Dispatch 2 workers in parallel"
-        #     )
-        # elif self.research_config.research_depth == "deep":
-        #     depth_context += (
-        #         "\n- Deep analysis, 15+ data points\n- Dispatch 4 workers in parallel"
-        #     )
-        # else:
-        #     depth_context += (
-        #         "\n- Standard depth, 5-10 data points\n- Dispatch 3 workers in parallel"
-        #     )
+        return super().get_lead_prompt()
 
-        # # Add configured agent info
-        # workers = self.get_agents_by_role("worker")
-        # if workers:
-        #     depth_context += f"\n\nAvailable workers: {', '.join(workers)}"
-
-        # return base_prompt + depth_context
+    def _get_setting_sources(self) -> list[str]:
+        """Research uses both project and user settings."""
+        return ["project", "user"]
 
     async def setup(self) -> None:
         """Setup research directories."""
@@ -211,19 +191,22 @@ class ResearchArchitecture(BaseArchitecture):
         # Apply plugins
         prompt = self._apply_before_execute(prompt)
 
-        # Build hooks
+        # Apply prompt customization (extension point)
+        prompt = self._customize_prompt(prompt)
+
+        # Build hooks using base class method
         hooks = self._build_hooks(tracker)
 
         # Get lead prompt and agents
         lead_prompt = self.get_lead_prompt()
         agents = self.to_sdk_agents()
 
-        # Configure SDK options
+        # Configure SDK options using extension points
         options = ClaudeAgentOptions(
             permission_mode="bypassPermissions",
-            setting_sources=["project", "user"],
+            setting_sources=self._get_setting_sources(),
             system_prompt=lead_prompt,
-            allowed_tools=["Task"],  # Lead only uses Task tool
+            allowed_tools=self._get_allowed_tools(),
             agents=agents,
             hooks=hooks,
             model=self.model_config.default,
@@ -239,30 +222,3 @@ class ResearchArchitecture(BaseArchitecture):
                 # Track result
                 if hasattr(msg, "content") and msg.content:
                     self._result = msg.content
-
-    def _build_hooks(self, tracker: SubagentTracker | None) -> dict[str, list]:
-        """Build hook configuration."""
-        hooks: dict[str, list] = {}
-
-        if tracker:
-            hooks["PreToolUse"] = [
-                HookMatcher(
-                    matcher=None,
-                    hooks=[tracker.pre_tool_use_hook],
-                )
-            ]
-            hooks["PostToolUse"] = [
-                HookMatcher(
-                    matcher=None,
-                    hooks=[tracker.post_tool_use_hook],
-                )
-            ]
-
-        # Merge with custom hooks
-        custom_hooks = self.get_hooks()
-        for hook_type, matchers in custom_hooks.items():
-            if hook_type not in hooks:
-                hooks[hook_type] = []
-            hooks[hook_type].extend(matchers)
-
-        return hooks
