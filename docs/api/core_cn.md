@@ -20,19 +20,21 @@
 
 ## 初始化API
 
-### `init()`
+### `create_session()`
 
 初始化框架的推荐入口点。
 
 ```python
-def init(
+def create_session(
     architecture: ArchitectureType = "research",
     *,
     model: ModelType = "haiku",
+    agent_instances: list[AgentInstanceConfig] | None = None,
+    prompts_dir: Path | str | None = None,
+    template_vars: dict[str, Any] | None = None,
     verbose: bool = False,
     log_dir: Path | str | None = None,
     files_dir: Path | str | None = None,
-    auto_setup: bool = True,
 ) -> AgentSession
 ```
 
@@ -42,10 +44,12 @@ def init(
 |-----------|------|---------|-------------|
 | `architecture` | `ArchitectureType` | `"research"` | 要使用的架构模式。选项: `"research"`, `"pipeline"`, `"critic_actor"`, `"specialist_pool"`, `"debate"`, `"reflexion"`, `"mapreduce"` |
 | `model` | `ModelType` | `"haiku"` | 代理的默认模型。选项: `"haiku"`, `"sonnet"`, `"opus"` |
+| `agent_instances` | `list[AgentInstanceConfig] \| None` | `None` | 基于角色的智能体实例配置 |
+| `prompts_dir` | `Path \| str \| None` | `None` | 业务提示词的自定义目录 |
+| `template_vars` | `dict[str, Any] \| None` | `None` | 提示词模板变量 |
 | `verbose` | `bool` | `False` | 启用调试日志 |
 | `log_dir` | `Path \| str \| None` | `None` | 日志的自定义目录(默认: `logs/`) |
 | `files_dir` | `Path \| str \| None` | `None` | 输出文件的自定义目录(默认: `files/`) |
-| `auto_setup` | `bool` | `True` | 自动创建目录 |
 
 **返回值**: `AgentSession` - 可立即使用的会话对象
 
@@ -55,13 +59,13 @@ def init(
 **示例**:
 
 ```python
-from claude_agent_framework import init
+from claude_agent_framework import create_session
 
 # 简单使用
-session = init("research")
+session = create_session("research")
 
 # 带选项
-session = init(
+session = create_session(
     "pipeline",
     model="sonnet",
     verbose=True,
@@ -108,7 +112,7 @@ results = asyncio.run(quick_query("分析Python趋势"))
 print(results[-1])  # 打印最终消息
 ```
 
-**注意**: 对于多个查询或流式输出,请改用 `init()`。
+**注意**: 对于多个查询或流式输出,请改用 `create_session()`。
 
 ---
 
@@ -181,7 +185,7 @@ async def setup(self) -> None
 **示例**:
 
 ```python
-session = init("research")
+session = create_session("research")
 await session.setup()  # 可选 - run() 会自动调用
 ```
 
@@ -200,7 +204,7 @@ async def teardown(self) -> None
 **示例**:
 
 ```python
-session = init("research")
+session = create_session("research")
 try:
     async for msg in session.run(prompt):
         print(msg)
@@ -229,7 +233,7 @@ async def run(self, prompt: str) -> AsyncIterator[Any]
 **示例**:
 
 ```python
-session = init("research")
+session = create_session("research")
 
 async for message in session.run("分析AI市场趋势"):
     # message 可以是:
@@ -260,7 +264,7 @@ async def query(self, prompt: str) -> list[Any]
 **示例**:
 
 ```python
-session = init("research")
+session = create_session("research")
 
 messages = await session.query("分析市场趋势")
 print(f"收到 {len(messages)} 条消息")
@@ -274,7 +278,7 @@ print(messages[-1])  # 最终结果
 `AgentSession` 支持异步上下文管理器以自动清理:
 
 ```python
-async with init("research") as session:
+async with create_session("research") as session:
     result = await session.query("分析趋势")
     # 自动进行清理
 ```
@@ -295,7 +299,7 @@ def architecture(self) -> BaseArchitecture
 **示例**:
 
 ```python
-session = init("research")
+session = create_session("research")
 print(session.architecture.name)  # "research"
 print(session.architecture.description)
 ```
@@ -314,7 +318,7 @@ def config(self) -> FrameworkConfig
 **示例**:
 
 ```python
-session = init("research")
+session = create_session("research")
 print(session.config.logs_dir)  # 日志目录路径
 ```
 
@@ -334,7 +338,7 @@ def session_dir(self) -> Path | None
 **示例**:
 
 ```python
-session = init("research")
+session = create_session("research")
 await session.setup()
 print(f"会话日志: {session.session_dir}")
 # 输出: 会话日志: logs/session-20251226-103045/
@@ -434,35 +438,40 @@ async def execute(
 
 ---
 
-#### `get_agents()`
+#### `get_role_definitions()`
 
-返回此架构的代理定义。
+返回此架构的角色定义。
 
 ```python
 @abstractmethod
-def get_agents(self) -> dict[str, AgentDefinitionConfig]
+def get_role_definitions(self) -> dict[str, RoleDefinition]
 ```
 
-**返回值**: `dict[str, AgentDefinitionConfig]` - 代理名称到其配置的映射
+**返回值**: `dict[str, RoleDefinition]` - 角色 ID 到角色定义的映射
 
 **示例**:
 
 ```python
-def get_agents(self) -> dict[str, AgentDefinitionConfig]:
+from claude_agent_framework.core.roles import RoleDefinition
+from claude_agent_framework.core.types import RoleType, RoleCardinality
+
+def get_role_definitions(self) -> dict[str, RoleDefinition]:
     return {
-        "researcher": AgentDefinitionConfig(
-            name="researcher",
+        "worker": RoleDefinition(
+            role_type=RoleType.WORKER,
             description="对特定主题进行研究",
-            tools=["WebSearch", "Read", "Write"],
-            prompt_file="researcher.txt",
-            model="haiku"
+            required_tools=["WebSearch", "Read", "Write"],
+            cardinality=RoleCardinality.ONE_OR_MORE,
+            prompt_file="worker.txt",
+            default_model="haiku"
         ),
-        "synthesizer": AgentDefinitionConfig(
-            name="synthesizer",
+        "synthesizer": RoleDefinition(
+            role_type=RoleType.SYNTHESIZER,
             description="综合研究发现",
-            tools=["Read", "Write"],
+            required_tools=["Read", "Write"],
+            cardinality=RoleCardinality.EXACTLY_ONE,
             prompt_file="synthesizer.txt",
-            model="sonnet"
+            default_model="sonnet"
         )
     }
 ```
@@ -554,7 +563,7 @@ def add_plugin(self, plugin: BasePlugin) -> None
 ```python
 from claude_agent_framework.plugins.builtin import MetricsCollectorPlugin
 
-session = init("research")
+session = create_session("research")
 metrics = MetricsCollectorPlugin()
 session.architecture.add_plugin(metrics)
 
@@ -1054,20 +1063,29 @@ def register_architecture(name: str) -> Callable
 
 ```python
 from claude_agent_framework.core import register_architecture, BaseArchitecture
+from claude_agent_framework.core.roles import RoleDefinition
+from claude_agent_framework.core.types import RoleType, RoleCardinality
 
 @register_architecture("my_custom")
 class MyCustomArchitecture(BaseArchitecture):
     name = "my_custom"
     description = "我的自定义架构"
 
-    def get_agents(self):
-        return {...}
+    def get_role_definitions(self) -> dict[str, RoleDefinition]:
+        return {
+            "worker": RoleDefinition(
+                role_type=RoleType.WORKER,
+                description="执行研究任务",
+                required_tools=["Read", "Write"],
+                cardinality=RoleCardinality.ONE_OR_MORE,
+            ),
+        }
 
     async def execute(self, prompt, tracker=None, transcript=None):
         ...
 
-# 现在可以与 init() 一起使用
-session = init("my_custom")
+# 现在可以与 create_session() 一起使用
+session = create_session("my_custom")
 ```
 
 ---
@@ -1104,10 +1122,10 @@ ModelType = Literal["haiku", "sonnet", "opus"]
 **示例**:
 
 ```python
-from claude_agent_framework import init, InitializationError
+from claude_agent_framework import create_session, InitializationError
 
 try:
-    session = init("unknown_architecture")
+    session = create_session("unknown_architecture")
 except InitializationError as e:
     print(f"初始化失败: {e}")
 ```
@@ -1116,10 +1134,9 @@ except InitializationError as e:
 
 ## 进一步阅读
 
-- [插件API参考](plugins_cn.md) - 插件系统API
-- [架构API参考](architectures_cn.md) - 内置架构API
 - [最佳实践](../BEST_PRACTICES_CN.md) - 使用指南
-- [架构指南](../guides/architecture_selection/GUIDE_CN.md) - 选择正确的架构
+- [角色架构指南](../ROLE_BASED_ARCHITECTURE_CN.md) - 角色系统详解
+- [架构选择指南](../guides/architecture_selection/GUIDE_CN.md) - 选择正确的架构
 
 ---
 

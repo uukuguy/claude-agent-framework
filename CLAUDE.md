@@ -352,6 +352,282 @@ The framework uses a **two-layer prompt composition** pattern that separates gen
 
 For complete prompt writing guide, see [docs/PROMPT_WRITING_GUIDE.md](docs/PROMPT_WRITING_GUIDE.md).
 
+## Workflow Driving Mechanism
+
+The framework uses a **Lead Agent + Task Tool** pattern to drive multi-agent workflows:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         Lead Agent                               │
+│  (Receives user request, orchestrates workflow)                  │
+│                                                                  │
+│  System Prompt = Framework Prompt + Business Prompt              │
+│  Available Tool = Task (ONLY)                                    │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+                             │ Task tool calls
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                       Sub-Agents                                 │
+│                                                                  │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐              │
+│  │  Worker 1   │  │  Worker 2   │  │  Processor  │  ...         │
+│  │  (parallel) │  │  (parallel) │  │             │              │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘              │
+│         │                │                │                      │
+│         └────────────────┼────────────────┘                      │
+│                          │                                       │
+│                          ▼                                       │
+│                   files/ (filesystem)                            │
+│              (Loose coupling via files)                          │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Key Mechanism
+
+1. **Lead Agent Constraint**: Lead agent can ONLY use Task tool to dispatch sub-agents
+   - Cannot perform research, analysis, or writing tasks itself
+   - Only orchestrates and coordinates
+
+2. **Task Tool Dispatching**: Lead agent dispatches sub-agents by calling Task tool
+   ```python
+   # Framework prompt rule (in architectures/research/prompts/lead_agent.txt):
+   # "You may ONLY use the Task tool to dispatch sub-agents"
+   # "Dispatch multiple `worker` role agents in parallel"
+   ```
+
+3. **Filesystem Communication**: Sub-agents exchange data via files
+   - Workers save results to `files/research_notes/`
+   - Processors read from files, write to `files/charts/`
+   - Synthesizers read all files, generate final output
+
+4. **Parallel Execution**: Multiple Task tool calls in one response = parallel execution
+   ```python
+   # Lead agent can dispatch multiple workers simultaneously:
+   # Task(agent="researcher_competitor_a", prompt="Research competitor A...")
+   # Task(agent="researcher_competitor_b", prompt="Research competitor B...")
+   ```
+
+## Building Business Applications
+
+### Step-by-Step Guide
+
+Building a business application involves 5 key steps:
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│  Step 1: Choose Architecture                                          │
+│  ──────────────────────────────────────────────────────────────────  │
+│  Match your workflow pattern to an architecture:                      │
+│  - Parallel data gathering → Research                                 │
+│  - Sequential stages → Pipeline                                       │
+│  - Iterative improvement → Critic-Actor                               │
+│  - Expert routing → Specialist Pool                                   │
+│  - Decision analysis → Debate                                         │
+│  - Trial-and-error → Reflexion                                        │
+│  - Large-scale processing → MapReduce                                 │
+└──────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│  Step 2: Define Agent Instances                                       │
+│  ──────────────────────────────────────────────────────────────────  │
+│  Map your business roles to architecture roles:                       │
+│                                                                       │
+│  agents = [                                                           │
+│      AgentInstanceConfig(                                             │
+│          name="market-researcher",    # Business name                 │
+│          role="worker",               # Architecture role             │
+│          description="Market data collection",                        │
+│          prompt_file="researcher.txt",                                │
+│      ),                                                               │
+│      AgentInstanceConfig(name="report-writer", role="synthesizer"),   │
+│  ]                                                                    │
+└──────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│  Step 3: Write Business Prompts                                       │
+│  ──────────────────────────────────────────────────────────────────  │
+│  Create prompts/ directory with business-specific context:            │
+│                                                                       │
+│  prompts/lead_agent.txt:                                              │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │ # Competitive Intelligence Coordinator                         │  │
+│  │                                                                 │  │
+│  │ You are coordinating analysis for ${company_name}.             │  │
+│  │                                                                 │  │
+│  │ ## Team & Skills                                                │  │
+│  │ - **Researchers**: Use `competitive-research` Skill            │  │
+│  │ - **Report Writer**: Uses `report-generation` Skill            │  │
+│  │                                                                 │  │
+│  │ ## Deliverables                                                 │  │
+│  │ - Research notes → files/research_notes/                        │  │
+│  │ - Final report → files/reports/                                 │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│  Step 4: Create Skills                                                │
+│  ──────────────────────────────────────────────────────────────────  │
+│  Skills provide methodology guidance in .claude/skills/{name}/SKILL.md│
+│                                                                       │
+│  .claude/skills/competitive-research/SKILL.md:                        │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │ ---                                                            │  │
+│  │ name: competitive-research                                     │  │
+│  │ description: Competitive intelligence methodology              │  │
+│  │ ---                                                            │  │
+│  │                                                                 │  │
+│  │ # Research Focus                                                │  │
+│  │ - Product & Service Analysis                                    │  │
+│  │ - Market Position                                               │  │
+│  │ - Financial Indicators                                          │  │
+│  │                                                                 │  │
+│  │ # Data Collection Priority                                      │  │
+│  │ 1. Market Data (size, share, growth)                            │  │
+│  │ 2. Financial Data (revenue, valuation)                          │  │
+│  │ 3. Technical Metrics                                            │  │
+│  │                                                                 │  │
+│  │ # Output Specification                                          │  │
+│  │ Save to: files/research_notes/{competitor}.md                   │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│  Step 5: Configure and Run                                            │
+│  ──────────────────────────────────────────────────────────────────  │
+│                                                                       │
+│  session = create_session(                                            │
+│      "research",                          # Architecture              │
+│      agent_instances=agents,              # Business agents           │
+│      prompts_dir=Path("prompts"),         # Business prompts          │
+│      template_vars={                      # Dynamic values            │
+│          "company_name": "Acme Corp",                                 │
+│          "industry": "Technology",                                    │
+│      },                                                               │
+│  )                                                                    │
+│                                                                       │
+│  async for msg in session.run("Analyze competitors X, Y, Z"):         │
+│      print(msg)                                                       │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+### Complete Example: Competitive Intelligence
+
+```
+examples/production/01_competitive_intelligence/
+├── main.py                           # Application entry point
+├── config.yaml                       # Business configuration
+├── prompts/                          # Business prompts (Step 3)
+│   ├── lead_agent.txt                # Coordination strategy
+│   ├── researcher.txt                # Research methodology
+│   ├── data_analyst.txt              # Analysis guidelines
+│   └── report_writer.txt             # Report format
+├── .claude/skills/                   # Skills (Step 4)
+│   ├── competitive-research/SKILL.md # Research methodology
+│   ├── data-analysis/SKILL.md        # Analysis frameworks
+│   └── report-generation/SKILL.md    # Report standards
+└── README.md
+```
+
+### Prompt Composition Flow
+
+```
+                    Final Agent System Prompt
+                            │
+        ┌───────────────────┴───────────────────┐
+        │                                       │
+        ▼                                       ▼
+┌───────────────────┐               ┌───────────────────┐
+│ Framework Prompt  │               │ Business Prompt   │
+│ (Generic Role)    │   + merged +  │ (Domain Context)  │
+└───────────────────┘               └───────────────────┘
+        │                                       │
+        ▼                                       ▼
+architectures/research/              examples/production/
+prompts/lead_agent.txt               01_competitive_intelligence/
+                                     prompts/lead_agent.txt
+┌─────────────────────┐             ┌─────────────────────┐
+│ # Research          │             │ # Competitive Intel │
+│ # Coordinator       │             │ # Coordinator       │
+│                     │             │                     │
+│ ## Core Rules       │             │ You are coordinating│
+│ 1. ONLY use Task    │             │ analysis for        │
+│ 2. NEVER research   │             │ ${company_name}     │
+│    yourself         │             │                     │
+│                     │             │ ## Team & Skills    │
+│ ## Workflow Phases  │             │ - Researchers: use  │
+│ 1. Plan Phase       │             │   `competitive-     │
+│ 2. Research Phase   │             │   research` Skill   │
+│ 3. Processing Phase │             │                     │
+│ 4. Synthesis Phase  │             │ ## Deliverables     │
+│                     │             │ - Research notes    │
+│ ## Dispatching      │             │ - Final report (PDF)│
+│ Use agent names as  │             │                     │
+│ configured          │             │ ## Success Criteria │
+└─────────────────────┘             └─────────────────────┘
+        │                                       │
+        └───────────────────┬───────────────────┘
+                            │
+                            ▼
+                ┌───────────────────────┐
+                │ Template Variable     │
+                │ Substitution          │
+                │ ${company_name} →     │
+                │ "Acme Corp"           │
+                └───────────────────────┘
+                            │
+                            ▼
+                ┌───────────────────────┐
+                │ Final System Prompt   │
+                │ (Ready for Claude)    │
+                └───────────────────────┘
+```
+
+### Skills Integration
+
+Skills are **Claude Agent SDK built-in feature** that provide methodology guidance:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        Agent Runtime                                 │
+│                                                                      │
+│  ┌──────────────────┐                                                │
+│  │  System Prompt   │◄── Contains reference: "Use `competitive-      │
+│  │  (merged)        │     research` Skill for methodology"           │
+│  └────────┬─────────┘                                                │
+│           │                                                          │
+│           ▼                                                          │
+│  ┌──────────────────┐                                                │
+│  │  Claude Model    │                                                │
+│  │  (Agent)         │                                                │
+│  └────────┬─────────┘                                                │
+│           │                                                          │
+│           │ Automatically discovers and invokes based on context     │
+│           ▼                                                          │
+│  ┌──────────────────────────────────────────────────────────────┐   │
+│  │  .claude/skills/competitive-research/SKILL.md                │   │
+│  │                                                               │   │
+│  │  # Research Focus                                             │   │
+│  │  - Product Analysis                                           │   │
+│  │  - Market Position                                            │   │
+│  │  - Financial Indicators                                       │   │
+│  │                                                               │   │
+│  │  # Output Specification                                       │   │
+│  │  Save to: files/research_notes/{competitor}.md               │   │
+│  └──────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Key Points**:
+- Skills are filesystem artifacts (`.claude/skills/*/SKILL.md`)
+- Automatically discovered by Claude when referenced in prompts
+- Provide detailed methodology without bloating the system prompt
+- Enable reusable domain knowledge across agents
+
 ## Production Example Design
 
 Each production example demonstrates a complete business application of an architecture.
@@ -560,5 +836,9 @@ The framework includes **7 production-grade examples** (`examples/production/`) 
 - docs/ROLE_BASED_ARCHITECTURE.md / docs/ROLE_BASED_ARCHITECTURE_CN.md - Role-based architecture guide (English/Chinese)
 - docs/PROMPT_WRITING_GUIDE.md - Two-layer prompt architecture and writing specifications
 - docs/api/core.md / docs/api/core_cn.md - Core API reference (English/Chinese)
+- docs/api/plugins.md / docs/api/plugins_cn.md - Plugin system API reference (English/Chinese)
+- docs/guides/architecture_selection/GUIDE.md / GUIDE_CN.md - Architecture selection guide (English/Chinese)
+- docs/guides/advanced/PERFORMANCE_TUNING.md / PERFORMANCE_TUNING_CN.md - Performance tuning guide
+- docs/guides/customization/CUSTOM_PLUGINS.md / CUSTOM_PLUGINS_CN.md - Custom plugin development
 - examples/production/README.md - Production examples overview
 - examples/production/*/README.md - Individual example documentation (all 7 examples complete)

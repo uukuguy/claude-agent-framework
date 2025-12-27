@@ -2,78 +2,81 @@
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
-基于 [Claude Agent SDK](https://github.com/anthropics/claude-code-sdk-python) 的生产级多智能体编排框架。设计、组合和部署复杂的 AI 工作流，提供开箱即用的架构模式。
+基于 [Claude Agent SDK](https://github.com/anthropics/claude-code-sdk-python) 的生产级多智能体编排框架。设计、组合、部署复杂的 AI 工作流，使用预置架构模式。
 
-[English Documentation](README.md) | [最佳实践指南](docs/BEST_PRACTICES_CN.md) | [角色类型系统](docs/ROLE_BASED_ARCHITECTURE_CN.md)
+[English Documentation](README.md)
 
 ## 概述
 
-Claude Agent Framework 是一个生产级的多智能体 AI 系统编排层。它解决了复杂任务需要多种专业能力（研究、分析、代码生成、决策支持）而单一 LLM 提示词无法有效处理的根本性挑战。框架将这些任务分解为协调的工作流：主智能体编排专业化的子智能体，每个子智能体拥有专注的提示词、受限的工具访问权限和适配的模型选择。基于 Claude Agent SDK 构建，它提供了从实际应用中提炼的成熟模式、通过 Hook 机制实现的全链路可观测性，以及让你能在几分钟内从概念到可运行系统的简洁 API。
+Claude Agent Framework 解决了复杂任务需要多种专业能力的根本挑战——研究、分析、代码生成、决策——这些无法通过单一 LLM 提示词有效处理。框架将这些任务分解为协调的工作流，由**主智能体编排专业子智能体**，每个子智能体具有专注的提示词、受限的工具访问和适当的模型选择。
 
-**核心特性：**
+基于 Claude Agent SDK 构建，提供：
 
-- **7 种预置模式** - Research、Pipeline、Critic-Actor、Specialist Pool、Debate、Reflexion、MapReduce
-- **两行代码启动** - 极简初始化和运行
-- **角色类型架构** - 角色定义与智能体实例分离，灵活配置
-- **生产级插件系统** - 生命周期钩子支持指标收集、成本追踪、重试处理
-- **两层提示词** - 框架提示词 + 业务提示词，工作流可复用
-- **全链路可观测** - 结构化 JSONL 日志、会话追踪、调试工具
-- **成本可控** - 自动模型选择、单代理成本分解
-- **可扩展架构** - 通过简单装饰器注册自定义模式
+- **7 种经过验证的模式** — Research、Pipeline、Critic-Actor、Specialist Pool、Debate、Reflexion、MapReduce
+- **角色类型架构** — 将角色定义与智能体实例分离，实现灵活配置
+- **两层提示词系统** — 框架提示词 + 业务提示词，实现工作流复用
+- **生产级插件系统** — 生命周期钩子用于指标、成本追踪、重试处理
+- **完整可观测性** — 结构化 JSONL 日志、会话追踪、调试工具
+- **简洁 API** — 从概念到运行系统只需几分钟
 
 ```python
 from claude_agent_framework import create_session
 
 session = create_session("research")
-async for msg in session.run("分析 AI 市场趋势"):
+async for msg in session.run("分析 AI 编程助手的竞争格局"):
     print(msg)
 ```
 
-## 设计理念
+---
 
-### 为什么需要多智能体？
+## 为什么需要多智能体？
 
-复杂任务通常需要多种专业能力，单一 LLM 提示词无法有效处理。以研究任务为例：需要网络搜索、数据分析、报告撰写——每个环节需要不同的工具、提示词甚至模型。单体方案会导致：
+复杂任务需要多种专业能力。一个研究任务需要网络搜索、数据分析和报告撰写——每个环节需要不同的工具、提示词和模型。单一 LLM 提示词无法有效处理这种场景。
 
-- **提示词膨胀**：一个提示词试图做所有事情，变得难以维护
-- **工具过载**：智能体在某些阶段访问了不该使用的工具
-- **质量下降**：万金油式的提示词不如专业化提示词效果好
-- **成本浪费**：简单子任务也使用昂贵模型
+**单体方案的问题：**
+- 提示词膨胀：一个提示词试图做所有事情，变得难以维护
+- 工具过载：智能体在某些阶段访问了不该使用的工具
+- 质量下降：万金油式的提示词不如专业化提示词效果好
+- 成本浪费：简单子任务也使用昂贵模型
 
-### 核心架构
-
-Claude Agent Framework 通过**智能体专业化与编排**解决这个问题：
+**解决方案：智能体专业化与编排**
 
 ```
 用户请求
-    ↓
-主智能体（编排者）
-    │
-    ├── 分析任务需求
-    ├── 分解为子任务
-    ├── 派发给专业子智能体
-    ├── 协调执行流程
-    └── 综合最终输出
-          ↓
-    子智能体（专家）
-    │
-    ├── 针对特定任务的专注提示词
-    ├── 最小化工具访问（最小权限）
-    ├── 适当使用高性价比模型
-    └── 通过文件系统通信（松耦合）
+      │
+      ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                         主智能体 (Lead Agent)                    │
+│  • 接收请求，分解为子任务                                          │
+│  • 只能使用 Task 工具派发子智能体                                  │
+│  • 不直接执行研究/分析/写作任务                                    │
+└────────────────────────────┬────────────────────────────────────┘
+                             │ Task 工具调用（并行）
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐              │
+│  │  Worker 1   │  │  Worker 2   │  │  Processor  │  ...         │
+│  │  (haiku)    │  │  (haiku)    │  │  (sonnet)   │              │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘              │
+│         │                │                │                      │
+│         └────────────────┼────────────────┘                      │
+│                          ▼                                       │
+│                   files/ (文件系统)                               │
+│                   通过文件松耦合                                   │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### 设计原则
+**核心原则：**
 
-| 原则 | 理由 |
-|------|------|
-| **职责分离** | 主智能体编排，子智能体执行——职责清晰 |
-| **工具约束** | 每个智能体只获得所需工具——安全且专注 |
-| **松耦合** | 基于文件系统的数据交换——智能体相互独立 |
-| **可观测性** | Hook 机制捕获所有工具调用——便于调试和审计 |
-| **成本优化** | 根据任务复杂度匹配模型能力 |
+| 原则 | 实现方式 |
+|------|----------|
+| 职责分离 | 主智能体编排，子智能体执行 |
+| 工具约束 | 每个智能体只获得所需工具 |
+| 松耦合 | 基于文件系统的数据交换 |
+| 成本优化 | 根据任务复杂度匹配模型能力 |
+
+---
 
 ## 快速开始
 
@@ -88,257 +91,323 @@ import asyncio
 
 async def main():
     session = create_session("research")
-    async for msg in session.run("分析 2024 年 AI 市场趋势"):
+    async for msg in session.run("分析 AI 编程助手的竞争格局"):
         print(msg)
 
 asyncio.run(main())
 ```
 
-## 可用架构
+---
 
-| 架构 | 适用场景 | 核心模式 |
-|------|----------|----------|
-| **research** | 深度研究 | 主从协调、并行数据收集 |
-| **pipeline** | 代码审查、内容创作 | 顺序阶段处理 |
-| **critic_actor** | 质量迭代 | 生成-评审循环 |
-| **specialist_pool** | 技术支持 | 专家路由和派发 |
-| **debate** | 决策支持 | 正反辩论 + 裁判 |
-| **reflexion** | 复杂问题求解 | 执行-反思-改进循环 |
-| **mapreduce** | 大规模分析 | 并行映射 + 聚合 |
+## 架构模式
 
-## 角色类型架构
+框架提供 7 种预置架构模式：
 
-框架采用**角色类型架构**，将抽象的角色定义与具体的智能体实例分离。这使得单一架构能够通过灵活的智能体配置支持多种业务场景。
+| 架构 | 模式 | 适用场景 |
+|------|------|----------|
+| **research** | 主从并行 | 多源数据采集、市场研究、文献综述 |
+| **pipeline** | 顺序阶段 | 代码审查、内容工作流、多步审批 |
+| **critic_actor** | 生成-评审循环 | 质量改进、迭代优化 |
+| **specialist_pool** | 专家路由 | 技术支持、问答系统、诊断系统 |
+| **debate** | 正反辩论 | 决策支持、风险评估、供应商评估 |
+| **reflexion** | 执行-反思-改进 | 调试、根因分析、优化问题 |
+| **mapreduce** | 并行映射+归约 | 大规模分析（500+文件）、批处理 |
 
-### 核心概念
-
-| 概念 | 描述 |
-|------|------|
-| **RoleType** | 语义角色类型（WORKER、PROCESSOR、SYNTHESIZER 等） |
-| **RoleCardinality** | 数量约束（EXACTLY_ONE、ONE_OR_MORE 等） |
-| **RoleDefinition** | 架构级角色规范，含工具和约束定义 |
-| **AgentInstanceConfig** | 业务级具体智能体配置 |
-
-### 使用示例
+每个架构定义了具有特定约束的**角色**：
 
 ```python
-from claude_agent_framework import create_session
+# Research 架构角色
+worker      → RoleCardinality.ONE_OR_MORE   # 并行数据收集者
+processor   → RoleCardinality.ZERO_OR_ONE   # 可选数据处理者
+synthesizer → RoleCardinality.EXACTLY_ONE   # 必需结果综合者
+```
+
+---
+
+## 构建业务应用
+
+构建业务应用包含 5 个步骤：
+
+### 步骤 1：选择架构
+
+将你的工作流模式匹配到架构：
+- 并行数据采集 → **Research**
+- 顺序阶段处理 → **Pipeline**
+- 迭代质量改进 → **Critic-Actor**
+- 专家路由分发 → **Specialist Pool**
+- 决策分析 → **Debate**
+- 试错探索 → **Reflexion**
+- 大规模处理 → **MapReduce**
+
+### 步骤 2：定义智能体实例
+
+将业务角色映射到架构角色：
+
+```python
 from claude_agent_framework.core.roles import AgentInstanceConfig
 
-# 为特定业务需求定义智能体实例
 agents = [
     AgentInstanceConfig(
-        name="market-researcher",
-        role="worker",
-        description="市场数据收集专员",
-        prompt_file="prompts/market_researcher.txt",
-    ),
-    AgentInstanceConfig(
-        name="tech-researcher",
-        role="worker",
-        description="技术趋势分析师",
-    ),
-    AgentInstanceConfig(
-        name="data-analyst",
-        role="processor",
-        model="sonnet",
+        name="market-researcher",      # 业务名称
+        role="worker",                 # 架构角色
+        description="市场数据收集",
+        prompt_file="researcher.txt",
     ),
     AgentInstanceConfig(
         name="report-writer",
         role="synthesizer",
     ),
 ]
-
-# 使用角色配置创建会话
-session = create_session("research", agent_instances=agents)
-async for msg in session.run("分析 AI 市场趋势"):
-    print(msg)
 ```
 
-详细文档请参阅 [角色类型系统指南](docs/ROLE_BASED_ARCHITECTURE_CN.md)。
+### 步骤 3：编写业务提示词
 
-## 生产级示例
-
-框架包含 **7 个生产级示例**，展示真实业务场景的应用。每个示例演示特定架构模式如何解决实际的企业挑战。
-
-**📁 位置**：[`examples/production/`](examples/production/)
-**📊 状态**：全部 7 个示例已完成并可投入生产
-**📚 文档**：每个示例包含双语 README（EN/CN）、配置指南和架构文档
-
-### 示例概览
-
-| 示例 | 架构 | 业务场景 | 核心设计模式 | 状态 |
-|------|------|----------|-------------|------|
-| [**01_competitive_intelligence**](examples/production/01_competitive_intelligence/) | Research | SaaS 竞品分析 | 并行数据收集 → 综合分析 | ✅ 已完成 |
-| [**02_pr_code_review**](examples/production/02_pr_code_review/) | Pipeline | 自动化 PR 审查 | 顺序阶段门控 + 质量阈值 | ✅ 已完成 |
-| [**03_marketing_content**](examples/production/03_marketing_content/) | Critic-Actor | 营销文案优化 | 生成 → 评估 → 改进循环 | ✅ 已完成 |
-| [**04_it_support**](examples/production/04_it_support/) | Specialist Pool | IT 支持路由 | 关键词专家分发 + 紧急度分类 | ✅ 已完成 |
-| [**05_tech_decision**](examples/production/05_tech_decision/) | Debate | 技术决策支持 | 多轮辩论 + 加权标准评估 | ✅ 已完成 |
-| [**06_code_debugger**](examples/production/06_code_debugger/) | Reflexion | 自适应调试 | 执行 → 反思 → 调整策略 | ✅ 已完成 |
-| [**07_codebase_analysis**](examples/production/07_codebase_analysis/) | MapReduce | 大规模代码库分析 | 智能分片 → 并行映射 → 聚合 | ✅ 已完成 |
-
-### 运行示例
-
-```bash
-# 进入示例目录
-cd examples/production/01_competitive_intelligence
-
-# 安装依赖
-pip install -e ".[all]"
-
-# 配置
-cp config.example.yaml config.yaml
-# 编辑 config.yaml 设置参数
-
-# 运行
-python main.py
-```
-
-## 架构图解
-
-### Research 架构
+创建 `prompts/` 目录，包含业务特定上下文：
 
 ```
-用户请求
-    ↓
-Lead Agent (协调者)
-    ├─→ Researcher-1 ─┐
-    ├─→ Researcher-2 ─┼─→ 并行研究
-    └─→ Researcher-3 ─┘
-           ↓
-    Data-Analyst
-           ↓
-    Report-Writer
-           ↓
-    输出文件
+prompts/lead_agent.txt
 ```
 
-### Pipeline 架构
+```markdown
+# 竞争情报协调者
 
-```
-请求 → Architect → Coder → Reviewer → Tester → 输出
-```
+你正在为 ${company_name} 协调分析工作。
 
-### Critic-Actor 架构
+## 团队与技能
+- **研究员**: 使用 `competitive-research` 技能获取方法论
+- **报告撰写者**: 使用 `report-generation` 技能进行格式化
 
-```
-while quality < threshold:
-    content = Actor.generate()
-    feedback = Critic.evaluate()
-    if approved: break
-```
-
-### Specialist Pool 架构
-
-```
-用户问题 → Router → [Code Expert, Data Expert, Security Expert, ...] → 汇总
+## 交付物
+- 研究笔记 → files/research_notes/
+- 最终报告 → files/reports/
 ```
 
-### Debate 架构
+框架将你的业务提示词与通用框架提示词合并：
 
 ```
-辩题 → Proponent ↔ Opponent (N轮) → Judge → 裁决
+最终提示词 = 框架提示词（通用角色规则）
+           + 业务提示词（领域上下文）
+           + 模板变量（${company_name} → "Acme Corp"）
 ```
 
-### Reflexion 架构
+### 步骤 4：创建技能（可选）
+
+技能提供方法论指导，智能体根据上下文自动调用：
 
 ```
-while not success:
-    result = Executor.execute()
-    reflection = Reflector.analyze()
-    strategy = reflection.improved_strategy
+.claude/skills/competitive-research/SKILL.md
 ```
 
-### MapReduce 架构
+```markdown
+---
+name: competitive-research
+description: 竞争情报方法论
+---
 
-```
-任务 → Splitter → [Mapper-1, Mapper-2, ...] → Reducer → 结果
-```
+# 研究重点
+- 产品与服务分析
+- 市场定位
+- 财务指标
 
-## CLI 使用
+# 数据收集优先级
+1. 市场数据（规模、份额、增长）
+2. 财务数据（营收、估值）
+3. 技术指标
 
-### 运行架构
-
-```bash
-# 列出可用架构
-python -m claude_agent_framework.cli --list
-
-# 运行指定架构
-python -m claude_agent_framework.cli --arch research -q "分析 AI 市场趋势"
-
-# 交互模式
-python -m claude_agent_framework.cli --arch pipeline -i
-
-# 选择模型
-python -m claude_agent_framework.cli --arch debate -m sonnet -q "是否应该使用微服务？"
+# 输出规范
+保存至: files/research_notes/{competitor}.md
 ```
 
-## Python API
-
-### 基本用法
+### 步骤 5：配置并运行
 
 ```python
+from pathlib import Path
 from claude_agent_framework import create_session
+from claude_agent_framework.core.roles import AgentInstanceConfig
 
-session = create_session("research")
+agents = [
+    AgentInstanceConfig(name="market-researcher", role="worker"),
+    AgentInstanceConfig(name="tech-researcher", role="worker"),
+    AgentInstanceConfig(name="report-writer", role="synthesizer"),
+]
 
-async for msg in session.run("研究量子计算应用"):
+session = create_session(
+    "research",
+    agent_instances=agents,
+    prompts_dir=Path("prompts"),
+    template_vars={
+        "company_name": "Acme Corp",
+        "industry": "Technology",
+    },
+)
+
+async for msg in session.run("分析竞争对手 X、Y、Z"):
     print(msg)
 ```
 
-### 带选项
+---
 
-```python
-session = create_session(
-    "pipeline",
-    model="sonnet",      # haiku, sonnet, 或 opus
-    verbose=True,        # 启用调试日志
-    log_dir="./logs",    # 自定义日志目录
-)
+## 完整示例结构
+
+```
+my_competitive_intel/
+├── main.py                           # 入口点
+├── config.yaml                       # 配置
+├── prompts/                          # 业务提示词
+│   ├── lead_agent.txt                # 协调策略
+│   ├── researcher.txt                # 研究方法论
+│   └── report_writer.txt             # 报告格式
+└── .claude/skills/                   # 方法论指导
+    ├── competitive-research/SKILL.md
+    └── report-generation/SKILL.md
 ```
 
-### 单次查询
+参见 [`examples/production/`](examples/production/) 获取 7 个完整的生产级示例。
 
-```python
-from claude_agent_framework import quick_query
-import asyncio
+---
 
-# 快速一次性查询
-results = asyncio.run(quick_query("分析 Python 趋势", architecture="research"))
-print(results[-1])
+## 两层提示词架构
+
+提示词由两层组合而成：
+
+| 层级 | 位置 | 作用 |
+|------|------|------|
+| **框架层** | `architectures/*/prompts/` | 通用角色能力、工作流规则、派发指南 |
+| **业务层** | 你的 `prompts/` 目录 | 领域上下文、技能引用、交付物、成功标准 |
+
+**框架提示词**（通用、可复用）：
+```markdown
+# 角色：研究协调者
+
+## 核心规则
+1. 你只能使用 Task 工具派发子智能体
+2. 绝不自己执行研究、分析或写作任务
+
+## 工作流阶段
+1. 规划阶段 - 识别可并行的子主题
+2. 研究阶段 - 并行派发 worker
+3. 处理阶段 - 派发 processor（如已配置）
+4. 综合阶段 - 派发 synthesizer 生成最终输出
 ```
 
-### 自定义架构
+**业务提示词**（领域特定）：
+```markdown
+# 竞争情报协调者
+
+你正在为 ${company_name}（${industry} 领域）协调分析工作。
+
+## 团队与技能
+- **研究员**: 使用 `competitive-research` 技能
+- **报告撰写者**: 使用 `report-generation` 技能
+
+## 交付物
+- 每个竞争对手的 SWOT 分析
+- 功能对比矩阵
+- 战略建议
+```
+
+---
+
+## 角色配置
+
+框架将**角色定义**（架构级）与**智能体实例**（业务级）分离：
+
+```python
+# 架构定义角色约束
+class ResearchArchitecture(BaseArchitecture):
+    def get_role_definitions(self) -> dict[str, RoleDefinition]:
+        return {
+            "worker": RoleDefinition(
+                role_type=RoleType.WORKER,
+                required_tools=["WebSearch"],
+                cardinality=RoleCardinality.ONE_OR_MORE,  # 1-N 个 worker
+                default_model="haiku",
+            ),
+            "synthesizer": RoleDefinition(
+                role_type=RoleType.SYNTHESIZER,
+                required_tools=["Write"],
+                cardinality=RoleCardinality.EXACTLY_ONE,  # 恰好 1 个
+                default_model="sonnet",
+            ),
+        }
+
+# 业务配置具体智能体
+agents = [
+    AgentInstanceConfig(name="market-researcher", role="worker"),
+    AgentInstanceConfig(name="tech-researcher", role="worker"),
+    AgentInstanceConfig(name="report-writer", role="synthesizer", model="opus"),
+]
+```
+
+---
+
+## 自定义架构
 
 ```python
 from claude_agent_framework import register_architecture, BaseArchitecture
 from claude_agent_framework.core.roles import RoleDefinition
 from claude_agent_framework.core.types import RoleType, RoleCardinality
 
-@register_architecture("my_custom")
-class MyCustomArchitecture(BaseArchitecture):
-    name = "my_custom"
+@register_architecture("my_workflow")
+class MyWorkflow(BaseArchitecture):
+    name = "my_workflow"
     description = "我的自定义工作流"
 
     def get_role_definitions(self) -> dict[str, RoleDefinition]:
         return {
-            "worker": RoleDefinition(
-                role_type=RoleType.WORKER,
+            "executor": RoleDefinition(
+                role_type=RoleType.EXECUTOR,
                 description="执行任务",
-                required_tools=["Read", "Write"],
+                required_tools=["Read", "Write", "Bash"],
                 cardinality=RoleCardinality.ONE_OR_MORE,
+            ),
+            "reviewer": RoleDefinition(
+                role_type=RoleType.CRITIC,
+                description="审查结果",
+                required_tools=["Read"],
+                cardinality=RoleCardinality.EXACTLY_ONE,
             ),
         }
 
     async def execute(self, prompt, tracker=None, transcript=None):
-        # 实现逻辑
+        # 你的编排逻辑
         ...
 ```
 
-### 会话生命周期
+---
+
+## 插件系统
 
 ```python
-# 手动管理
+from claude_agent_framework import create_session
+from claude_agent_framework.plugins.builtin import (
+    MetricsCollectorPlugin,
+    CostTrackerPlugin,
+)
+
+session = create_session("research")
+
+# 添加指标追踪
+metrics = MetricsCollectorPlugin()
+session.architecture.add_plugin(metrics)
+
+# 添加成本追踪（带预算限制）
+cost = CostTrackerPlugin(budget_usd=5.0)
+session.architecture.add_plugin(cost)
+
+async for msg in session.run("分析市场"):
+    print(msg)
+
+# 获取结果
+print(f"成本: ${metrics.get_metrics().estimated_cost_usd:.4f}")
+```
+
+---
+
+## 会话生命周期
+
+```python
+# 方式 1：手动管理
 session = create_session("research")
 try:
     async for msg in session.run(prompt):
@@ -346,68 +415,29 @@ try:
 finally:
     await session.teardown()
 
-# 上下文管理器（AgentSession 实现了 __aenter__/__aexit__）
+# 方式 2：上下文管理器
 async with create_session("research") as session:
     results = await session.query(prompt)
 ```
 
-### 使用插件
-
-```python
-from claude_agent_framework import create_session
-from claude_agent_framework.plugins.builtin import (
-    MetricsCollectorPlugin,
-    CostTrackerPlugin,
-    RetryHandlerPlugin
-)
-
-session = create_session("research")
-
-# 添加指标追踪
-metrics_plugin = MetricsCollectorPlugin()
-session.architecture.add_plugin(metrics_plugin)
-
-# 添加成本追踪（带预算限制）
-cost_plugin = CostTrackerPlugin(budget_usd=5.0)
-session.architecture.add_plugin(cost_plugin)
-
-# 运行会话
-async for msg in session.run("分析市场"):
-    print(msg)
-
-# 获取指标
-metrics = metrics_plugin.get_metrics()
-print(f"成本: ${metrics.estimated_cost_usd:.4f}")
-```
-
-### 动态代理注册
-
-```python
-session = create_session("specialist_pool")
-
-# 运行时添加新代理
-session.architecture.add_agent(
-    name="security_expert",
-    description="网络安全专家",
-    tools=["WebSearch", "Read"],
-    prompt="你是一名网络安全专家...",
-    model="sonnet"
-)
-
-# 列出所有代理（静态 + 动态）
-agents = session.architecture.list_dynamic_agents()
-print(f"动态代理: {agents}")
-```
+---
 
 ## 输出
 
 每次会话生成：
 
-- `logs/session_YYYYMMDD_HHMMSS/transcript.txt` - 人类可读对话日志
-- `logs/session_YYYYMMDD_HHMMSS/tool_calls.jsonl` - 结构化工具调用记录
-- `files/<architecture>/` - 架构特定输出（报告、图表等）
+```
+logs/session_YYYYMMDD_HHMMSS/
+├── transcript.txt      # 人类可读对话日志
+└── tool_calls.jsonl    # 结构化工具调用记录
 
-## 安装选项
+files/
+└── <architecture>/     # 架构特定输出
+```
+
+---
+
+## 安装
 
 ```bash
 # 基础安装
@@ -419,117 +449,46 @@ pip install "claude-agent-framework[pdf]"
 # 支持图表生成
 pip install "claude-agent-framework[charts]"
 
-# 完整安装（所有功能）
+# 完整安装
 pip install "claude-agent-framework[all]"
-
-# 开发安装
-pip install "claude-agent-framework[dev]"
 ```
 
-## 项目结构
-
-```
-src/claude_agent_framework/
-├── __init__.py              # 包导出 (v0.4.0)
-├── session.py               # create_session() 入口点
-├── cli.py                   # 命令行界面
-├── architectures/           # 7 种内置架构实现
-│   ├── research/            # ResearchArchitecture
-│   ├── pipeline/            # PipelineArchitecture
-│   ├── critic_actor/        # CriticActorArchitecture
-│   ├── specialist_pool/     # SpecialistPoolArchitecture
-│   ├── debate/              # DebateArchitecture
-│   ├── reflexion/           # ReflexionArchitecture
-│   └── mapreduce/           # MapReduceArchitecture
-├── config/                  # 配置系统
-│   ├── legacy.py            # FrameworkConfig, AgentConfig
-│   └── schema.py            # Pydantic 验证模式
-├── core/                    # 核心抽象
-│   ├── base.py              # BaseArchitecture, AgentDefinitionConfig
-│   ├── prompt.py            # PromptComposer - 两层提示词组合
-│   ├── registry.py          # @register_architecture, get_architecture
-│   ├── roles.py             # RoleDefinition, AgentInstanceConfig
-│   ├── session.py           # AgentSession, CompositeSession
-│   └── types.py             # RoleType, RoleCardinality, ModelType
-├── dynamic/                 # 动态代理注册
-├── metrics/                 # 性能追踪
-├── observability/           # 结构化日志和可视化
-├── plugins/                 # 插件系统及生命周期钩子
-│   ├── base.py              # BasePlugin, PluginManager
-│   └── builtin/             # MetricsCollector, CostTracker, RetryHandler
-├── utils/                   # 工具模块
-│   ├── tracker.py           # SubagentTracker, 工具调用记录
-│   ├── transcript.py        # TranscriptWriter, 会话日志
-│   ├── message_handler.py   # 消息处理
-│   └── helpers.py           # quick_query 便捷函数
-├── files/                   # 工作目录
-└── logs/                    # 会话日志
-```
-
-## 开发
-
-```bash
-# 克隆并安装
-git clone https://github.com/your-org/claude-agent-framework
-cd claude-agent-framework
-pip install -e ".[all]"
-
-# 运行测试
-make test
-
-# 格式化代码
-make format
-
-# 代码检查
-make lint
-```
-
-## Makefile 命令
-
-```bash
-make run              # 运行默认架构（research）
-make run-research     # 运行 Research 架构
-make run-pipeline     # 运行 Pipeline 架构
-make run-critic       # 运行 Critic-Actor 架构
-make run-specialist   # 运行 Specialist Pool 架构
-make run-debate       # 运行 Debate 架构
-make run-reflexion    # 运行 Reflexion 架构
-make run-mapreduce    # 运行 MapReduce 架构
-make list-archs       # 列出所有架构
-make test             # 运行测试
-make format           # 格式化代码
-make lint             # 代码检查
-```
+---
 
 ## 文档
 
-### 快速参考
+| 文档 | 描述 |
+|------|------|
+| [最佳实践](docs/BEST_PRACTICES_CN.md) | 模式选择和实现技巧 |
+| [角色类型架构](docs/ROLE_BASED_ARCHITECTURE_CN.md) | 角色类型、约束和智能体实例化 |
+| [提示词编写指南](docs/PROMPT_WRITING_GUIDE.md) | 两层提示词架构 |
+| [核心 API 参考](docs/api/core_cn.md) | `create_session()`、`AgentSession`、`BaseArchitecture` |
+| [插件 API 参考](docs/api/plugins_cn.md) | 插件系统和生命周期钩子 |
+| [架构选择指南](docs/guides/architecture_selection/GUIDE_CN.md) | 选择合适的架构 |
 
-- [README (English)](README.md) - 英文文档
-- [Best Practices Guide](docs/BEST_PRACTICES.md) - 模式选择和实现技巧
-- [最佳实践指南（中文）](docs/BEST_PRACTICES_CN.md)
+---
 
-### 架构与设计
+## 生产级示例
 
-- [Role-Based Architecture Guide](docs/ROLE_BASED_ARCHITECTURE.md) - 角色类型、约束和智能体实例化
-- [角色类型系统指南（中文）](docs/ROLE_BASED_ARCHITECTURE_CN.md)
-- [Prompt Writing Guide](docs/PROMPT_WRITING_GUIDE.md) - 两层提示词架构
+[`examples/production/`](examples/production/) 中的全部 7 个示例均已完成并可投入生产：
 
-### API 参考
+| 示例 | 架构 | 业务场景 |
+|------|------|----------|
+| [01_competitive_intelligence](examples/production/01_competitive_intelligence/) | Research | SaaS 竞品分析 |
+| [02_pr_code_review](examples/production/02_pr_code_review/) | Pipeline | 自动化 PR 审查 |
+| [03_marketing_content](examples/production/03_marketing_content/) | Critic-Actor | 营销文案优化 |
+| [04_it_support](examples/production/04_it_support/) | Specialist Pool | IT 支持路由 |
+| [05_tech_decision](examples/production/05_tech_decision/) | Debate | 技术决策支持 |
+| [06_code_debugger](examples/production/06_code_debugger/) | Reflexion | 自适应调试 |
+| [07_codebase_analysis](examples/production/07_codebase_analysis/) | MapReduce | 大规模代码库分析 |
 
-- [Core API Reference](docs/api/core.md) - create_session(), AgentSession, BaseArchitecture
-- [核心 API 参考（中文）](docs/api/core_cn.md)
+---
 
 ## 环境要求
 
 - Python 3.10+
-- Claude Agent SDK
-- ANTHROPIC_API_KEY 环境变量
+- `ANTHROPIC_API_KEY` 环境变量
 
 ## 许可证
 
 MIT License - 详见 [LICENSE](LICENSE)
-
-## 贡献
-
-欢迎贡献！请阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 了解指南。

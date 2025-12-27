@@ -20,19 +20,21 @@ This document provides complete API reference for Claude Agent Framework's core 
 
 ## Initialization API
 
-### `init()`
+### `create_session()`
 
 The recommended entry point for initializing the framework.
 
 ```python
-def init(
+def create_session(
     architecture: ArchitectureType = "research",
     *,
     model: ModelType = "haiku",
+    agent_instances: list[AgentInstanceConfig] | None = None,
+    prompts_dir: Path | str | None = None,
+    template_vars: dict[str, Any] | None = None,
     verbose: bool = False,
     log_dir: Path | str | None = None,
     files_dir: Path | str | None = None,
-    auto_setup: bool = True,
 ) -> AgentSession
 ```
 
@@ -42,10 +44,12 @@ def init(
 |-----------|------|---------|-------------|
 | `architecture` | `ArchitectureType` | `"research"` | Architecture pattern to use. Options: `"research"`, `"pipeline"`, `"critic_actor"`, `"specialist_pool"`, `"debate"`, `"reflexion"`, `"mapreduce"` |
 | `model` | `ModelType` | `"haiku"` | Default model for agents. Options: `"haiku"`, `"sonnet"`, `"opus"` |
+| `agent_instances` | `list[AgentInstanceConfig] \| None` | `None` | Agent instance configurations for role-based setup |
+| `prompts_dir` | `Path \| str \| None` | `None` | Custom prompts directory for business prompts |
+| `template_vars` | `dict[str, Any] \| None` | `None` | Template variables for prompt substitution |
 | `verbose` | `bool` | `False` | Enable debug logging |
 | `log_dir` | `Path \| str \| None` | `None` | Custom directory for logs (default: `logs/`) |
 | `files_dir` | `Path \| str \| None` | `None` | Custom directory for output files (default: `files/`) |
-| `auto_setup` | `bool` | `True` | Automatically create directories |
 
 **Returns**: `AgentSession` - Ready-to-use session object
 
@@ -55,13 +59,13 @@ def init(
 **Example**:
 
 ```python
-from claude_agent_framework import init
+from claude_agent_framework import create_session
 
 # Simple usage
-session = init("research")
+session = create_session("research")
 
 # With options
-session = init(
+session = create_session(
     "pipeline",
     model="sonnet",
     verbose=True,
@@ -108,7 +112,7 @@ results = asyncio.run(quick_query("Analyze Python trends"))
 print(results[-1])  # Print final message
 ```
 
-**Note**: For multiple queries or streaming output, use `init()` instead.
+**Note**: For multiple queries or streaming output, use `create_session()` instead.
 
 ---
 
@@ -181,7 +185,7 @@ async def setup(self) -> None
 **Example**:
 
 ```python
-session = init("research")
+session = create_session("research")
 await session.setup()  # Optional - run() calls this automatically
 ```
 
@@ -200,7 +204,7 @@ async def teardown(self) -> None
 **Example**:
 
 ```python
-session = init("research")
+session = create_session("research")
 try:
     async for msg in session.run(prompt):
         print(msg)
@@ -229,7 +233,7 @@ async def run(self, prompt: str) -> AsyncIterator[Any]
 **Example**:
 
 ```python
-session = init("research")
+session = create_session("research")
 
 async for message in session.run("Analyze AI market trends"):
     # message can be:
@@ -260,7 +264,7 @@ async def query(self, prompt: str) -> list[Any]
 **Example**:
 
 ```python
-session = init("research")
+session = create_session("research")
 
 messages = await session.query("Analyze market trends")
 print(f"Received {len(messages)} messages")
@@ -274,7 +278,7 @@ print(messages[-1])  # Final result
 `AgentSession` supports async context manager for automatic cleanup:
 
 ```python
-async with init("research") as session:
+async with create_session("research") as session:
     result = await session.query("Analyze trends")
     # Teardown happens automatically
 ```
@@ -295,7 +299,7 @@ def architecture(self) -> BaseArchitecture
 **Example**:
 
 ```python
-session = init("research")
+session = create_session("research")
 print(session.architecture.name)  # "research"
 print(session.architecture.description)
 ```
@@ -314,7 +318,7 @@ def config(self) -> FrameworkConfig
 **Example**:
 
 ```python
-session = init("research")
+session = create_session("research")
 print(session.config.logs_dir)  # Path to logs directory
 ```
 
@@ -334,7 +338,7 @@ def session_dir(self) -> Path | None
 **Example**:
 
 ```python
-session = init("research")
+session = create_session("research")
 await session.setup()
 print(f"Session logs: {session.session_dir}")
 # Output: Session logs: logs/session-20251226-103045/
@@ -434,36 +438,42 @@ async def execute(
 
 ---
 
-#### `get_agents()`
+#### `get_role_definitions()`
 
-Return agent definitions for this architecture.
+Return role definitions for this architecture.
 
 ```python
 @abstractmethod
-def get_agents(self) -> dict[str, AgentDefinitionConfig]
+def get_role_definitions(self) -> dict[str, RoleDefinition]
 ```
 
-**Returns**: `dict[str, AgentDefinitionConfig]` - Mapping of agent names to their configurations
+**Returns**: `dict[str, RoleDefinition]` - Mapping of role IDs to their definitions
 
 **Example**:
 
 ```python
-def get_agents(self) -> dict[str, AgentDefinitionConfig]:
+from claude_agent_framework.core.roles import RoleDefinition
+from claude_agent_framework.core.types import RoleType, RoleCardinality
+
+def get_role_definitions(self) -> dict[str, RoleDefinition]:
     return {
-        "researcher": AgentDefinitionConfig(
-            name="researcher",
-            description="Conducts research on specific topics",
-            tools=["WebSearch", "Read", "Write"],
-            prompt_file="researcher.txt",
-            model="haiku"
+        "worker": RoleDefinition(
+            role_type=RoleType.WORKER,
+            description="Gathers research data",
+            required_tools=["WebSearch"],
+            optional_tools=["Write", "Read"],
+            cardinality=RoleCardinality.ONE_OR_MORE,
+            default_model="haiku",
+            prompt_file="worker.txt",
         ),
-        "synthesizer": AgentDefinitionConfig(
-            name="synthesizer",
+        "synthesizer": RoleDefinition(
+            role_type=RoleType.SYNTHESIZER,
             description="Synthesizes research findings",
-            tools=["Read", "Write"],
+            required_tools=["Write"],
+            cardinality=RoleCardinality.EXACTLY_ONE,
+            default_model="sonnet",
             prompt_file="synthesizer.txt",
-            model="sonnet"
-        )
+        ),
     }
 ```
 
@@ -554,7 +564,7 @@ def add_plugin(self, plugin: BasePlugin) -> None
 ```python
 from claude_agent_framework.plugins.builtin import MetricsCollectorPlugin
 
-session = init("research")
+session = create_session("research")
 metrics = MetricsCollectorPlugin()
 session.architecture.add_plugin(metrics)
 
@@ -1054,20 +1064,29 @@ def register_architecture(name: str) -> Callable
 
 ```python
 from claude_agent_framework.core import register_architecture, BaseArchitecture
+from claude_agent_framework.core.roles import RoleDefinition
+from claude_agent_framework.core.types import RoleType, RoleCardinality
 
 @register_architecture("my_custom")
 class MyCustomArchitecture(BaseArchitecture):
     name = "my_custom"
     description = "My custom architecture"
 
-    def get_agents(self):
-        return {...}
+    def get_role_definitions(self) -> dict[str, RoleDefinition]:
+        return {
+            "worker": RoleDefinition(
+                role_type=RoleType.WORKER,
+                description="Execute tasks",
+                required_tools=["Read", "Write"],
+                cardinality=RoleCardinality.ONE_OR_MORE,
+            ),
+        }
 
     async def execute(self, prompt, tracker=None, transcript=None):
         ...
 
-# Now usable with init()
-session = init("my_custom")
+# Now usable with create_session()
+session = create_session("my_custom")
 ```
 
 ---
@@ -1104,10 +1123,10 @@ Raised when framework initialization fails.
 **Example**:
 
 ```python
-from claude_agent_framework import init, InitializationError
+from claude_agent_framework import create_session, InitializationError
 
 try:
-    session = init("unknown_architecture")
+    session = create_session("unknown_architecture")
 except InitializationError as e:
     print(f"Initialization failed: {e}")
 ```
@@ -1117,9 +1136,8 @@ except InitializationError as e:
 ## Further Reading
 
 - [Plugins API Reference](plugins.md) - Plugin system API
-- [Architectures API Reference](architectures.md) - Built-in architecture APIs
 - [Best Practices](../BEST_PRACTICES.md) - Usage guidelines
-- [Architecture Guide](../guides/architecture_selection/GUIDE.md) - Choosing the right architecture
+- [Architecture Selection Guide](../guides/architecture_selection/GUIDE.md) - Choosing the right architecture
 
 ---
 
