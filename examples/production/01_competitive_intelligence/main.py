@@ -27,6 +27,7 @@ from common import (
 )
 
 from claude_agent_framework import create_session
+from claude_agent_framework.core.roles import AgentInstanceConfig
 
 logger = logging.getLogger(__name__)
 
@@ -69,11 +70,18 @@ async def run_competitive_intelligence(config: dict) -> dict:
 
         logger.info(f"Using prompt mode: {prompt_mode}")
 
+        # Build agent instances based on competitors
+        agent_instances = _build_agent_instances(config, models)
+        logger.info(
+            f"Created {len(agent_instances)} agent instances for {len(competitors)} competitors"
+        )
+
         if prompt_mode == "templates":
             # Templates mode: local overrides + framework business_template fallback
             session = create_session(
                 "research",
                 model=models.get("lead", "sonnet"),
+                agent_instances=agent_instances,
                 business_template=config.get("business_template", "competitive_intelligence"),
                 prompts_dir=prompts_dir if prompts_dir.exists() else None,
                 template_vars=template_vars,
@@ -88,6 +96,7 @@ async def run_competitive_intelligence(config: dict) -> dict:
             session = create_session(
                 "research",
                 model=models.get("lead", "sonnet"),
+                agent_instances=agent_instances,
                 prompts_dir=prompts_dir,
                 template_vars=template_vars,
                 verbose=False,
@@ -161,6 +170,68 @@ Deliver a comprehensive competitive intelligence report with comparative analysi
 """
 
     return prompt
+
+
+def _build_agent_instances(config: dict, models: dict) -> list[AgentInstanceConfig]:
+    """
+    Build agent instances based on competitors configuration.
+
+    Creates one researcher worker per competitor for parallel research,
+    plus optional processor and required synthesizer.
+
+    Args:
+        config: Configuration dictionary with competitors list
+        models: Model configuration
+
+    Returns:
+        List of AgentInstanceConfig instances
+    """
+    agent_model = models.get("agents", "haiku")
+    competitors = config.get("competitors", [])
+
+    agent_instances = []
+
+    # Worker 角色: 每个 competitor 创建一个专属 researcher
+    for competitor in competitors:
+        name = competitor["name"].lower().replace(" ", "_")
+        agent_instances.append(
+            AgentInstanceConfig(
+                name=f"researcher_{name}",
+                role="worker",
+                description=f"Research {competitor['name']} ({competitor['website']})",
+                tools=["Write", "Read"],
+                prompt_file="researcher.txt",
+                model=agent_model,
+                metadata={"competitor": competitor},
+            )
+        )
+
+    # Processor 角色: 数据分析师（可选，0-1）
+    if config.get("output", {}).get("include_charts", False):
+        agent_instances.append(
+            AgentInstanceConfig(
+                name="data_analyst",
+                role="processor",
+                description="Analyze research data and generate visualizations",
+                tools=["Glob", "Bash"],
+                prompt_file="data_analyst.txt",
+                model=agent_model,
+            )
+        )
+
+    # Synthesizer 角色: 报告撰写者（必须恰好 1 个）
+    agent_instances.append(
+        AgentInstanceConfig(
+            name="report_writer",
+            role="synthesizer",
+            description="Generate comprehensive competitive intelligence report",
+            tools=["Read", "Glob"],
+            prompt_file="report_writer.txt",
+            model=agent_model,
+        )
+    )
+
+    return agent_instances
 
 
 async def main():
