@@ -37,9 +37,6 @@ The framework solves the problem of complex tasks requiring multiple specialized
 - **Mechanism**: Skills are filesystem artifacts (`.claude/skills/*/SKILL.md`) automatically discovered and invoked by Claude
 - **Loading**: Configured via `setting_sources=["user", "project"]` in SDK options
 - **Enabling**: Add `"Skill"` to `allowed_tools` configuration
-- **Difference from business_templates**:
-  - `business_templates`: Framework-level prompt composition for agent system prompts
-  - `Skills`: SDK-level capability extension, model-invoked based on context
 
 ## Development Workflow
 
@@ -99,32 +96,44 @@ make format    # Format code
 ## Project Structure
 
 ```
-claude_agent_framework/
-├── init.py              # Simplified entry point (init function)
-├── __init__.py          # Package exports
-├── config.py            # Configuration management
-├── cli.py               # Command-line interface
-├── core/                # Core abstractions
-│   ├── base.py          # BaseArchitecture abstract class
-│   ├── registry.py      # Architecture registration
-│   ├── session.py       # AgentSession lifecycle management
-│   ├── roles.py         # Role-based architecture (RoleDefinition, AgentInstanceConfig)
-│   └── types.py         # Centralized type definitions (RoleType, RoleCardinality)
-├── architectures/       # Built-in architecture implementations
-│   ├── research/        # Master-worker pattern
-│   ├── pipeline/        # Sequential stages
-│   ├── critic_actor/    # Generate-evaluate loop
-│   ├── specialist_pool/ # Expert routing
-│   ├── debate/          # Pro-con deliberation
-│   ├── reflexion/       # Execute-reflect cycle
-│   └── mapreduce/       # Parallel map-reduce
-├── utils/               # Utilities
-│   ├── tracker.py       # SubagentTracker, tool call recording
-│   ├── transcript.py    # TranscriptWriter, session logging
-│   └── message_handler.py # Message processing
-├── examples/            # Example code
-├── files/               # Working directory for outputs
-└── logs/                # Session logs
+src/claude_agent_framework/
+├── __init__.py              # Package exports (v0.4.0)
+├── session.py               # create_session() entry point
+├── cli.py                   # Command-line interface
+├── architectures/           # 7 built-in architecture implementations
+│   ├── research/            # ResearchArchitecture - master-worker pattern
+│   ├── pipeline/            # PipelineArchitecture - sequential stages
+│   ├── critic_actor/        # CriticActorArchitecture - generate-evaluate loop
+│   ├── specialist_pool/     # SpecialistPoolArchitecture - expert routing
+│   ├── debate/              # DebateArchitecture - pro-con deliberation
+│   ├── reflexion/           # ReflexionArchitecture - execute-reflect cycle
+│   └── mapreduce/           # MapReduceArchitecture - parallel map-reduce
+├── config/                  # Configuration system
+│   ├── __init__.py          # Exports FrameworkConfig, AgentConfig
+│   ├── legacy.py            # Legacy configuration classes
+│   └── schema.py            # Pydantic validation schemas
+├── core/                    # Core abstractions
+│   ├── __init__.py          # Core exports
+│   ├── base.py              # BaseArchitecture, AgentDefinitionConfig, AgentModelConfig
+│   ├── prompt.py            # PromptComposer - two-layer prompt composition
+│   ├── registry.py          # @register_architecture, get_architecture, list_architectures
+│   ├── roles.py             # RoleDefinition, AgentInstanceConfig, RoleRegistry
+│   ├── session.py           # AgentSession, CompositeSession
+│   └── types.py             # RoleType, RoleCardinality, ModelType, ArchitectureType
+├── dynamic/                 # Dynamic agent registry (runtime registration)
+├── metrics/                 # Performance tracking and cost estimation
+├── observability/           # Structured logging and visualization
+├── plugins/                 # Plugin system with lifecycle hooks
+│   ├── base.py              # BasePlugin, PluginManager
+│   └── builtin/             # MetricsCollector, CostTracker, RetryHandler
+├── utils/                   # Utilities
+│   ├── __init__.py          # Utils exports
+│   ├── tracker.py           # SubagentTracker, SubagentSession, ToolCallRecord
+│   ├── transcript.py        # TranscriptWriter, QuietTranscriptWriter, setup_session
+│   ├── message_handler.py   # process_message, process_assistant_message
+│   └── helpers.py           # quick_query convenience function
+├── files/                   # Working directory for outputs
+└── logs/                    # Session logs
 ```
 
 ## Key Patterns
@@ -143,22 +152,33 @@ async for msg in session.run("Analyze AI trends"):
 
 ```python
 from claude_agent_framework import register_architecture, BaseArchitecture
+from claude_agent_framework.core.roles import RoleDefinition
+from claude_agent_framework.core.types import RoleType, RoleCardinality
 
 @register_architecture("my_arch")
 class MyArchitecture(BaseArchitecture):
     name = "my_arch"
     description = "Custom architecture"
 
-    def get_agents(self):
-        return {...}
+    def get_role_definitions(self) -> dict[str, RoleDefinition]:
+        return {
+            "worker": RoleDefinition(
+                role_type=RoleType.WORKER,
+                description="Execute tasks",
+                required_tools=["Read", "Write"],
+                cardinality=RoleCardinality.ONE_OR_MORE,
+            ),
+        }
 
     async def execute(self, prompt, tracker=None, transcript=None):
+        # Implementation
         ...
 ```
 
 ### 3. Session Lifecycle
 
 ```python
+# Manual management
 session = create_session("research")
 try:
     async for msg in session.run(prompt):
@@ -166,14 +186,14 @@ try:
 finally:
     await session.teardown()
 
-# Or use context manager
-async with init("research") as session:
+# Context manager (AgentSession implements __aenter__/__aexit__)
+async with create_session("research") as session:
     results = await session.query(prompt)
 ```
 
 ## Adding New Architectures
 
-1. Create directory: `architectures/new_arch/`
+1. Create directory: `src/claude_agent_framework/architectures/new_arch/`
 2. Create files:
    - `__init__.py` - exports
    - `config.py` - architecture-specific config
@@ -183,23 +203,34 @@ async with init("research") as session:
 3. Implement orchestrator:
 ```python
 from claude_agent_framework.core import register_architecture, BaseArchitecture
+from claude_agent_framework.core.roles import RoleDefinition
+from claude_agent_framework.core.types import RoleType, RoleCardinality
 
 @register_architecture("new_arch")
 class NewArchitecture(BaseArchitecture):
     name = "new_arch"
     description = "Description of the architecture"
 
-    def get_agents(self) -> dict[str, AgentDefinitionConfig]:
-        # Return agent definitions
-        ...
+    def get_role_definitions(self) -> dict[str, RoleDefinition]:
+        return {
+            "executor": RoleDefinition(
+                role_type=RoleType.EXECUTOR,
+                description="Execute tasks",
+                required_tools=["Bash", "Write"],
+                optional_tools=["Read", "Glob"],
+                cardinality=RoleCardinality.ONE_OR_MORE,
+                default_model="haiku",
+                prompt_file="executor.txt",
+            ),
+        }
 
     async def execute(self, prompt, tracker=None, transcript=None):
-        # Implementation
+        # Implementation using ClaudeSDKClient
         ...
 ```
 
 4. Add import to `architectures/__init__.py`
-5. Add tests in `tests/`
+5. Add tests in `tests/architectures/`
 
 ## Role-Based Architecture
 
@@ -211,10 +242,19 @@ The framework uses a Role-Based Architecture that separates role definitions fro
 from claude_agent_framework.core.types import RoleType, RoleCardinality
 
 # Role types define semantic roles
-RoleType.WORKER      # Data gatherer
-RoleType.PROCESSOR   # Data processor
-RoleType.SYNTHESIZER # Result synthesizer
-# ... etc.
+RoleType.COORDINATOR   # Orchestrates workflow
+RoleType.WORKER        # Parallel task execution
+RoleType.PROCESSOR     # Data processing
+RoleType.SYNTHESIZER   # Result aggregation
+RoleType.CRITIC        # Evaluates output
+RoleType.JUDGE         # Makes final decisions
+RoleType.SPECIALIST    # Domain-specific expert
+RoleType.ADVOCATE      # Argues position
+RoleType.EXECUTOR      # Executes actions
+RoleType.REFLECTOR     # Reflects on results
+RoleType.MAPPER        # Parallel mapping
+RoleType.REDUCER       # Result reduction
+RoleType.STAGE_EXECUTOR # Sequential stage execution
 
 # Cardinality defines quantity constraints
 RoleCardinality.EXACTLY_ONE   # Must have exactly 1
@@ -303,53 +343,6 @@ The framework uses a **two-layer prompt composition** pattern that separates gen
 └─────────────────────────────────────────┘
 ```
 
-### Framework Prompt Structure
-
-All framework lead agent prompts follow this structure:
-
-```markdown
-# Role: {Architecture} Coordinator
-
-## Core Rules
-1. You may ONLY use the Task tool to dispatch sub-agents
-2. NEVER perform {task type} tasks yourself
-...
-
-## Workflow Phases
-### 1. {Phase Name}
-- Dispatch `{role}` role agent to {action}
-...
-
-## Dispatching Guidelines
-- Use agent names as configured (check available agents)
-- Reference {criteria} from business context
-
-## State Tracking
-## Termination Conditions
-## Quality Gates
-## Error Handling
-```
-
-### Business Prompt Structure
-
-Business prompts add domain context:
-
-```markdown
-# {Business Role Title}
-
-You are coordinating {task} for ${organization}.
-
-## Team & Skills
-- **{Agent}**: Uses `{skill-name}` Skill for {purpose}
-
-## Coordination Strategy
-### Phase 1: {Business Phase}
-- Output saved to `files/{category}/`
-
-## Deliverables
-## Success Criteria
-```
-
 ### Key Design Principles
 
 1. **Framework prompts are generic**: Use role terminology (`actor role agent`) not specific names
@@ -400,24 +393,6 @@ session = create_session(
 )
 ```
 
-### Skills Integration
-
-Skills provide methodology that agents invoke based on context:
-
-```
-.claude/skills/
-├── {domain-skill}/
-│   └── SKILL.md        # Methodology, frameworks, quality standards
-└── {analysis-skill}/
-    └── SKILL.md
-```
-
-Reference in business prompts:
-```markdown
-## Available Skills
-- **{skill-name}**: {What methodology it provides}
-```
-
 ## Code Style
 
 - **Python version**: 3.10+
@@ -452,13 +427,57 @@ async def test_architecture():
 | reflexion | Execute-reflect-improve | Complex problem solving | 06_code_debugger | ✅ Complete |
 | mapreduce | Parallel map + reduce | Large-scale analysis | 07_codebase_analysis | ✅ Complete |
 
+## Architecture Role Definitions
+
+### Research Architecture
+| Role | Type | Cardinality | Required Tools | Default Model |
+|------|------|-------------|----------------|---------------|
+| worker | WORKER | ONE_OR_MORE | WebSearch | haiku |
+| processor | PROCESSOR | ZERO_OR_ONE | Read, Write | haiku |
+| synthesizer | SYNTHESIZER | EXACTLY_ONE | Write | haiku |
+
+### Pipeline Architecture
+| Role | Type | Cardinality | Required Tools | Default Model |
+|------|------|-------------|----------------|---------------|
+| stage | EXECUTOR | ONE_OR_MORE | Read | haiku |
+
+### Critic-Actor Architecture
+| Role | Type | Cardinality | Required Tools | Default Model |
+|------|------|-------------|----------------|---------------|
+| actor | EXECUTOR | EXACTLY_ONE | Read, Write, Edit | haiku |
+| critic | CRITIC | EXACTLY_ONE | Read | sonnet |
+
+### Specialist Pool Architecture
+| Role | Type | Cardinality | Required Tools | Default Model |
+|------|------|-------------|----------------|---------------|
+| specialist | SPECIALIST | ONE_OR_MORE | Read | haiku |
+
+### Debate Architecture
+| Role | Type | Cardinality | Required Tools | Default Model |
+|------|------|-------------|----------------|---------------|
+| proponent | ADVOCATE | EXACTLY_ONE | Read | haiku |
+| opponent | ADVOCATE | EXACTLY_ONE | Read | haiku |
+| judge | JUDGE | EXACTLY_ONE | Read | sonnet |
+
+### Reflexion Architecture
+| Role | Type | Cardinality | Required Tools | Default Model |
+|------|------|-------------|----------------|---------------|
+| executor | EXECUTOR | EXACTLY_ONE | Read, Write, Edit, Bash | haiku |
+| reflector | REFLECTOR | EXACTLY_ONE | Read | sonnet |
+
+### MapReduce Architecture
+| Role | Type | Cardinality | Required Tools | Default Model |
+|------|------|-------------|----------------|---------------|
+| mapper | WORKER | ONE_OR_MORE | Read, Glob, Grep | haiku |
+| reducer | SYNTHESIZER | EXACTLY_ONE | Read, Write | sonnet |
+
 ## Production Implementation Patterns
 
 The framework includes **7 production-grade examples** (`examples/production/`) demonstrating real-world business scenarios. **All examples are complete and production-ready**, each showcasing proven implementation patterns:
 
-**📁 Location**: `examples/production/`
-**📊 Status**: All 7 examples complete (✅ Complete)
-**📚 Documentation**: Each includes bilingual README (EN/CN), config guide, architecture docs
+**Location**: `examples/production/`
+**Status**: All 7 examples complete
+**Documentation**: Each includes bilingual README (EN/CN), config guide, architecture docs
 
 ### Common Patterns
 
@@ -489,18 +508,6 @@ The framework includes **7 production-grade examples** (`examples/production/`) 
    - Integration tests for end-to-end workflows
    - Mock-based testing for external dependencies
    - 100% test pass requirement before release
-
-### Architecture-Specific Patterns
-
-| Example | Architecture | Key Implementation Patterns | Status |
-|---------|--------------|----------------------------|--------|
-| [**01_competitive_intelligence**](examples/production/01_competitive_intelligence/) | Research | Parallel worker dispatch, SWOT analysis generation, multi-channel data aggregation | ✅ Complete |
-| [**02_pr_code_review**](examples/production/02_pr_code_review/) | Pipeline | Sequential stage gating, configurable failure strategies, threshold-based quality gates | ✅ Complete |
-| [**03_marketing_content**](examples/production/03_marketing_content/) | Critic-Actor | Weighted multi-dimensional scoring, brand voice enforcement, A/B variant generation | ✅ Complete |
-| [**04_it_support**](examples/production/04_it_support/) | Specialist Pool | Keyword-based routing, urgency categorization, parallel specialist consultation | ✅ Complete |
-| [**05_tech_decision**](examples/production/05_tech_decision/) | Debate | Multi-round deliberation, weighted criteria evaluation, evidence-based argumentation | ✅ Complete |
-| [**06_code_debugger**](examples/production/06_code_debugger/) | Reflexion | Strategy execution, reflection analysis, adaptive improvement, root cause taxonomy | ✅ Complete |
-| [**07_codebase_analysis**](examples/production/07_codebase_analysis/) | MapReduce | Intelligent chunking strategies, parallel mapping, weighted scoring, issue aggregation | ✅ Complete |
 
 ### When to Use Each Pattern
 
@@ -554,11 +561,4 @@ The framework includes **7 production-grade examples** (`examples/production/`) 
 - docs/PROMPT_WRITING_GUIDE.md - Two-layer prompt architecture and writing specifications
 - docs/api/core.md / docs/api/core_cn.md - Core API reference (English/Chinese)
 - examples/production/README.md - Production examples overview
-- examples/production/*/README.md - Individual example documentation (all 7 examples complete):
-  - 01_competitive_intelligence - Research architecture example
-  - 02_pr_code_review - Pipeline architecture example
-  - 03_marketing_content - Critic-Actor architecture example
-  - 04_it_support - Specialist Pool architecture example
-  - 05_tech_decision - Debate architecture example
-  - 06_code_debugger - Reflexion architecture example
-  - 07_codebase_analysis - MapReduce architecture example
+- examples/production/*/README.md - Individual example documentation (all 7 examples complete)
